@@ -120,31 +120,6 @@ Short description — important design considerations:
 - Auditability: include audit columns (`created_at`, `updated_at`, `created_by`) on mutable tables to support debugging and user history.
 - Scaling notes: partition or archive very old `transaction`/`daily_portfolio_snapshot` rows if you expect long-term growth; consider read replicas for heavy analytic queries.
 
-If you prefer a PDF preview, place `COMP 426 Database Schema.pdf` into `public/docs/` and embed it with:
-
-<iframe src="/docs/COMP426-Database-Schema.pdf" style="width:100%; height:600px; border:1px solid rgba(0,0,0,0.08);" title="Database schema PDF"></iframe>
-
-To add the image or PDF from your machine (example zsh commands from the repo root):
-
-```bash
-# create folder
-mkdir -p public/docs
-
-# copy a PNG (if the image is on your Desktop)
-cp "/Users/bryenalvarez/Desktop/COMP 426 Database Schema.png" public/docs/COMP426-Database-Schema.png
-
-# OR, if you only have the PDF, copy it and (optionally) convert to PNG with sips or imagemagick:
-cp "/Users/bryenalvarez/Desktop/COMP 426 Database Schema.pdf" public/docs/COMP426-Database-Schema.pdf
-# convert first page to PNG (macOS built-in sips will work if you've generated a PNG first using Preview; ImageMagick example):
-# brew install imagemagick
-# convert -density 150 public/docs/COMP426-Database-Schema.pdf[0] public/docs/COMP426-Database-Schema.png
-
-# commit
-git add public/docs/COMP426-Database-Schema.* docs/DESIGN.md
-git commit -m "Add database schema image/PDF and embed in DESIGN.md"
-git push
-```
-
 
 ## High-Fidelity Prototype
 
