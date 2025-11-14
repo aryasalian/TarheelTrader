@@ -112,11 +112,11 @@ Important design considerations:
 
 The schema centers on user `profiles` and their trading state. Core tables are `profiles`, `transaction`, `position`, `watchlist_items`, `daily_portfolio_snapshot`, and `notification`. `transaction` and `position` should reference `profiles.id` (or `portfolio.id` if you choose to model multiple portfolios per user).
 
-Use fixed-precision numeric types for monetary fields (for example `numeric(18,4)`) and enforce CHECK constraints (e.g., `quantity > 0`, `price >= 0`). Prefer enums for small categorical columns (`transaction.action` ∈ {'buy','sell'}, `notification.type` ∈ {'transaction','watchlist'}) and sensible defaults (for example `notification.is_read` default `false`).
+Use fixed-precision numeric types for monetary fields (for example `numeric(18,4)`) and enforce CHECK constraints (e.g., `quantity > 0`, `price >= 0`). Prefer enums for small categorical columns (`transaction.action` exists in {'buy','sell'}, `notification.type` exists in {'transaction','watchlist'}) and sensible defaults (for example `notification.is_read` default `false`).
 
 Indexes: add indexes on `user_id`, a compound index on (`user_id`, `symbol`) for per-user per-symbol aggregations, and an index on `date` for snapshot time-range queries to optimize common lookups.
 
-Eventing & realtime: implement transactional Postgres functions/triggers that atomically upsert `position` and append `daily_portfolio_snapshot` on `transaction` inserts so Supabase Realtime can broadcast deterministic, small change events. Make triggers idempotent and execute them inside DB transactions to avoid race conditions.
+Eventing & realtime: implement transactional Postgres functions/triggers that atomically upsert `position` and append `daily_portfolio_snapshot` on `transaction` inserts so Supabase Realtime can broadcast deterministic, small change events. 
 
 Auditability & history: include `created_at`, `updated_at`, and `created_by` columns on mutable tables. Consider soft-deletes or a dedicated audit/log table for full historical traceability.
 
