@@ -121,10 +121,8 @@ Short description — important design considerations:
 
 ## High-Fidelity Prototype
 
-<iframe
-	style="border: 1px solid rgba(0, 0, 0, 0.1); width:100%; max-width:1200px; height:560px;"
-	src="https://www.figma.com/embed?embed_host=share&url=https%3A%2F%2Fwww.figma.com%2Ffile%2FU5lB1L0YPampYrr4Zs0HDj%2FUntitled%3Fnode-id%3D0%253A1"
-	allowFullScreen
-	loading="lazy"
-	title="High-fidelity prototype (Figma)"
-></iframe>
+![Figma1](/docs/Figma1.jpg)
+![Figma2](/docs/Figma2.jpg)
+![Figma3](/docs/Figma3.jpg)
+
+Figma Link: https://www.figma.com/proto/U5lB1L0YPampYrr4Zs0HDj/Untitled?node-id=0-1&t=L4dhuBEg6RutSJ6S-1
