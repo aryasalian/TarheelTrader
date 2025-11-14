@@ -106,7 +106,7 @@ Together, these features create an integrated experience for investors to manage
 
 ## Backend Database Schema
 
-![Database schema](/docs/COMP426-Database-Schema.jpg)
+![Database schema](/docs/images/COMP426-Database-Schema.jpg)
 
 Short description — important design considerations:
 
@@ -121,8 +121,8 @@ Short description — important design considerations:
 
 ## High-Fidelity Prototype
 
-![Figma1](/docs/Figma1.jpg)
-![Figma2](/docs/Figma2.jpg)
-![Figma3](/docs/Figma3.jpg)
+![Figma1](/docs/images/Figma1.png)
+![Figma2](/docs/images/Figma2.png)
+![Figma3](/docs/images/Figma3.png)
 
 Figma Link: https://www.figma.com/proto/U5lB1L0YPampYrr4Zs0HDj/Untitled?node-id=0-1&t=L4dhuBEg6RutSJ6S-1
