@@ -106,8 +106,6 @@ Together, these features create an integrated experience for investors to manage
 
 ## Backend Database Schema
 
-The database schema diagram is shown below. Save the provided image/PDF to `public/docs/` so the file is served by the app (example filename: `public/docs/COMP426-Database-Schema.png`).
-
 ![Database schema](/docs/COMP426-Database-Schema.jpg)
 
 Short description — important design considerations:
@@ -123,4 +121,10 @@ Short description — important design considerations:
 
 ## High-Fidelity Prototype
 
-<iframe style="border: 1px solid rgba(0, 0, 0, 0.1);" width="800" height="450" src="https://embed.figma.com/design/U5lB1L0YPampYrr4Zs0HDj/Untitled?node-id=0-1&embed-host=share" allowfullscreen></iframe>
+<iframe
+	style="border: 1px solid rgba(0, 0, 0, 0.1); width:100%; max-width:1200px; height:560px;"
+	src="https://www.figma.com/embed?embed_host=share&url=https%3A%2F%2Fwww.figma.com%2Ffile%2FU5lB1L0YPampYrr4Zs0HDj%2FUntitled%3Fnode-id%3D0%253A1"
+	allowFullScreen
+	loading="lazy"
+	title="High-fidelity prototype (Figma)"
+></iframe>
