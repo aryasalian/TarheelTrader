@@ -108,21 +108,24 @@ Together, these features create an integrated experience for investors to manage
 
 ![Database schema](/docs/images/COMP426-Database-Schema.jpg)
 
-Short description — important design considerations:
+Important design considerations:
 
-- Core entities: `users`, `portfolio`, `transaction`, `position`, `watchlist_items`, and `daily_portfolio_snapshot`.
-- Referential integrity: use foreign keys from `transaction` and `position` to `portfolio` (or `user`) so portfolio state can be derived reliably.
-- Indexes: add indexes on `user_id`, `portfolio_id`, and `ticker` to optimize lookups for watchlists, portfolio aggregation, and charting queries.
-- Eventing & realtime: use Postgres triggers or server-side functions to update `position` and append `daily_portfolio_snapshot` on transaction inserts so Supabase Realtime can broadcast small, deterministic change events.
-- Normalization & storage: store only canonical state (transactions, positions, snapshots). Do not persist high-frequency market price ticks—fetch them on demand from Alpaca and broadcast via realtime channels.
-- Auditability: include audit columns (`created_at`, `updated_at`, `created_by`) on mutable tables to support debugging and user history.
-- Scaling notes: partition or archive very old `transaction`/`daily_portfolio_snapshot` rows if you expect long-term growth; consider read replicas for heavy analytic queries.
+The schema centers on user `profiles` and their trading state. Core tables are `profiles`, `transaction`, `position`, `watchlist_items`, `daily_portfolio_snapshot`, and `notification`. `transaction` and `position` should reference `profiles.id` (or `portfolio.id` if you choose to model multiple portfolios per user).
+
+Use fixed-precision numeric types for monetary fields (for example `numeric(18,4)`) and enforce CHECK constraints (e.g., `quantity > 0`, `price >= 0`). Prefer enums for small categorical columns (`transaction.action` ∈ {'buy','sell'}, `notification.type` ∈ {'transaction','watchlist'}) and sensible defaults (for example `notification.is_read` default `false`).
+
+Indexes: add indexes on `user_id`, a compound index on (`user_id`, `symbol`) for per-user per-symbol aggregations, and an index on `date` for snapshot time-range queries to optimize common lookups.
+
+Eventing & realtime: implement transactional Postgres functions/triggers that atomically upsert `position` and append `daily_portfolio_snapshot` on `transaction` inserts so Supabase Realtime can broadcast deterministic, small change events. Make triggers idempotent and execute them inside DB transactions to avoid race conditions.
+
+Auditability & history: include `created_at`, `updated_at`, and `created_by` columns on mutable tables. Consider soft-deletes or a dedicated audit/log table for full historical traceability.
+
+Scaling notes: partition or archive old `daily_portfolio_snapshot` rows if snapshots grow large, and consider read replicas for heavy analytic queries.
 
 
 ## High-Fidelity Prototype
+Figma Link: https://www.figma.com/proto/U5lB1L0YPampYrr4Zs0HDj/Untitled?node-id=0-1&t=L4dhuBEg6RutSJ6S-1
 
 ![Figma1](/docs/images/Figma1.png)
 ![Figma2](/docs/images/Figma2.png)
 ![Figma3](/docs/images/Figma3.png)
-
-Figma Link: https://www.figma.com/proto/U5lB1L0YPampYrr4Zs0HDj/Untitled?node-id=0-1&t=L4dhuBEg6RutSJ6S-1
