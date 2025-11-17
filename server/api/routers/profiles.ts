@@ -7,7 +7,11 @@
 
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { Profile } from "@/server/models/responses";
-import { NewUser, ProfileIdentity } from "@/server/models/inputs";
+import {
+  DraftProfileImage,
+  NewUser,
+  ProfileIdentity,
+} from "@/server/models/inputs";
 import { db } from "@/server/db";
 import { profiles } from "@/server/db/schema";
 import { TRPCError } from "@trpc/server";
@@ -69,10 +73,30 @@ const handleNewUser = protectedProcedure
   });
 
 /**
+ * TODO: Updates a user's avatar in Supabase storage.
+ *
+ * This function updates the avatar URL for the currently signed in
+ * user to match the attachment URL provided.
+ *
+ * This method should succeed silently (return nothing).
+ */
+const updateProfilePicture = protectedProcedure
+  .input(DraftProfileImage)
+  .mutation(async ({ ctx, input }) => {
+    const { subject } = ctx;
+    const { avatarUrl } = input;
+    await db
+      .update(profiles)
+      .set({ avatarUrl: avatarUrl })
+      .where(eq(profiles.id, subject.id));
+  });
+
+/**
  * Router for all profile-related APIs.
  */
 export const profilesApiRouter = createTRPCRouter({
   getProfile: getProfile,
   getAuthedUserProfile: getAuthedUserProfile,
   handleNewUser: handleNewUser,
+  updateProfilePicture: updateProfilePicture,
 });

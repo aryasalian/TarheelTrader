@@ -13,3 +13,6 @@ export const ProfileIdentity = z.object({ profileId: z.string() });
 export const NewUser = z.object({
   username: z.string(),
 });
+
+/** Defines the schema for a new draft profile image. */
+export const DraftProfileImage = z.object({ avatarUrl: z.string().nullish() });
