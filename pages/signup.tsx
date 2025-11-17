@@ -30,7 +30,7 @@ export default function SignUpPage() {
   // API endpoint for handling a new user sign up.
   const { mutate: handleNewUser } = api.profiles.handleNewUser.useMutation();
 
-  // TODO: Handle the sign up request, alerting the user if there is
+  // Handle the sign up request, alerting the user if there is
   // an error (using window.alert). If the signup is successful:
   // (1) Call the handleNewUser() function, passing in the selected
   //     name and handle, so that a new profile is added to the
@@ -40,12 +40,7 @@ export default function SignUpPage() {
   // (2) Then, the user should be redirected to the home page.
   //
   // Also, all cached results from React Query should be hard refreshed
-  // so that the header can correctly display newly logged-in user. Since
-  // this is a bit hard to figure out, I will give you the line of code
-  // that does this:
-  // ```ts
-  // apiUtils.invalidate();
-  // ```
+  // so that the header can correctly display newly logged-in user.
   const signUp = async () => {
     const { error } = await supabase.auth.signUp({ email, password });
     if (error) {
