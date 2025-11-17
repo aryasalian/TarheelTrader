@@ -5,7 +5,6 @@
  *
  */
 
-import z from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { Profile } from "@/server/models/responses";
 import { NewUser, ProfileIdentity } from "@/server/models/inputs";
