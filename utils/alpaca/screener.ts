@@ -21,7 +21,10 @@ export interface SnapshotEntry {
   prevDailyBar?: { c?: number } | null;
 }
 
-async function alpacaFetch<T>(path: string, params: Record<string, string> = {}) {
+async function alpacaFetch<T>(
+  path: string,
+  params: Record<string, string> = {},
+) {
   const url = new URL(`${DATA_BASE_URL}${path}`);
   Object.entries(params).forEach(([key, value]) => {
     url.searchParams.set(key, value);

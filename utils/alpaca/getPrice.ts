@@ -10,7 +10,8 @@ export async function getLatestPrice(symbol: string): Promise<number> {
     const quote = await alpaca.getLatestQuote(symbol);
     if (quote) {
       const { BidPrice, AskPrice } = quote;
-      const mid = BidPrice && AskPrice ? (BidPrice + AskPrice) / 2 : BidPrice || AskPrice;
+      const mid =
+        BidPrice && AskPrice ? (BidPrice + AskPrice) / 2 : BidPrice || AskPrice;
       if (mid) return mid;
     }
 
@@ -21,7 +22,9 @@ export async function getLatestPrice(symbol: string): Promise<number> {
   }
 }
 
-export async function getMultiplePrices(symbols: string[]): Promise<Record<string, number>> {
+export async function getMultiplePrices(
+  symbols: string[],
+): Promise<Record<string, number>> {
   const prices: Record<string, number> = {};
 
   await Promise.all(
@@ -31,7 +34,7 @@ export async function getMultiplePrices(symbols: string[]): Promise<Record<strin
       } catch {
         console.error(`Failed to fetch price for ${symbol}`);
       }
-    })
+    }),
   );
 
   return prices;

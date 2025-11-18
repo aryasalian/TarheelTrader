@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 interface PriceData {
   price: number;
@@ -16,8 +16,8 @@ interface PriceState {
 // Broadcast channel for cross-tab communication
 let channel: BroadcastChannel | null = null;
 
-if (typeof window !== 'undefined') {
-  channel = new BroadcastChannel('stock-prices');
+if (typeof window !== "undefined") {
+  channel = new BroadcastChannel("stock-prices");
 }
 
 export const usePriceStore = create<PriceState>((set, get) => {
@@ -77,7 +77,7 @@ export const usePriceStore = create<PriceState>((set, get) => {
 });
 
 // Clean up old prices every minute
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   setInterval(() => {
     usePriceStore.getState().clearOldPrices();
   }, 60000);
