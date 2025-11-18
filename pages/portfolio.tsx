@@ -1,8 +1,7 @@
-import { Subject } from "@/server/models/auth";
 import { createSupabaseServerClient } from "@/utils/supabase/clients/server-props";
 import { GetServerSidePropsContext } from "next";
 import { api } from "@/utils/trpc/api";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,15 +12,67 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Navigation } from "@/components/navigation";
 import { TrendingUp, TrendingDown, DollarSign, Activity, Plus } from "lucide-react";
+import { usePriceStore } from "@/store/priceStore";
 
-type PortfolioPageProps = { user: Subject };
+function PositionRow({ position }: { position: { id: string; symbol: string; quantity: number; avgCost: number } }) {
+  const updatePrice = usePriceStore((state) => state.updatePrice);
+  const cachedPrice = usePriceStore((state) => state.getPrice(position.symbol));
 
-export default function PortfolioPage({ user }: PortfolioPageProps) {
+  const { data: priceData } = api.position.getStockPrice.useQuery(
+    { symbol: position.symbol },
+    { 
+      refetchInterval: 30000, // Refresh every 30 seconds
+      staleTime: 20000,
+    }
+  );
+
+  // Update the store when we get new price data
+  useEffect(() => {
+    if (priceData?.price) {
+      updatePrice(position.symbol, priceData.price, priceData.success || false);
+    }
+  }, [priceData, position.symbol, updatePrice]);
+
+  // Use cached price if available and recent (within 30 seconds)
+  const useCached = cachedPrice && (Date.now() - cachedPrice.timestamp < 30000);
+  const currentPrice = useCached ? cachedPrice.price : (priceData?.price || position.avgCost);
+  const isPriceEstimate = useCached ? !cachedPrice.success : !priceData?.success;
+
+  const marketValue = position.quantity * currentPrice;
+  const costBasis = position.quantity * position.avgCost;
+  const profitLoss = marketValue - costBasis;
+  const returnPercent = ((profitLoss / costBasis) * 100);
+
+  return (
+    <TableRow key={position.id}>
+      <TableCell className="font-medium">{position.symbol}</TableCell>
+      <TableCell>{position.quantity}</TableCell>
+      <TableCell>${position.avgCost.toFixed(2)}</TableCell>
+      <TableCell>
+        ${currentPrice.toFixed(2)}
+        {isPriceEstimate && <span className="text-xs text-muted-foreground ml-1">(est)</span>}
+      </TableCell>
+      <TableCell>${marketValue.toFixed(2)}</TableCell>
+      <TableCell>
+        <span className={profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}>
+          {profitLoss >= 0 ? '+' : ''}${profitLoss.toFixed(2)}
+        </span>
+      </TableCell>
+      <TableCell>
+        <Badge variant={profitLoss >= 0 ? "default" : "destructive"}>
+          {profitLoss >= 0 ? '+' : ''}{returnPercent.toFixed(2)}%
+        </Badge>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+export default function PortfolioPage() {
   const { data: positions } = api.position.getPositions.useQuery();
-  const { data: portfolioValue } = api.position.getPortfolioValue.useQuery();
   const { data: transactions, refetch: refetchTransactions } = api.transaction.getTransactions.useQuery();
   const { data: stats } = api.transaction.getTransactionStats.useQuery();
   const createTransaction = api.transaction.createTransaction.useMutation();
+  const prices = usePriceStore((state) => state.prices);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [symbol, setSymbol] = useState("");
@@ -29,11 +80,20 @@ export default function PortfolioPage({ user }: PortfolioPageProps) {
   const [price, setPrice] = useState("");
   const [action, setAction] = useState<"buy" | "sell">("buy");
 
-  const totalValue = portfolioValue || 0;
-  const dailyChange = 1234.56;
-  const dailyChangePercent = 2.45;
-  const totalProfitLoss = 5678.90;
-  const totalProfitLossPercent = 8.32;
+  // Calculate total portfolio value using live prices from store
+  const totalValue = positions?.reduce((sum, pos) => {
+    const priceData = prices[pos.symbol];
+    const currentPrice = priceData?.price || pos.avgCost;
+    return sum + (pos.quantity * currentPrice);
+  }, 0) || 0;
+
+  // Calculate total profit/loss
+  const totalCostBasis = positions?.reduce((sum, pos) => sum + (pos.quantity * pos.avgCost), 0) || 0;
+  const totalProfitLoss = totalValue - totalCostBasis;
+  const totalProfitLossPercent = totalCostBasis > 0 ? (totalProfitLoss / totalCostBasis) * 100 : 0;
+
+  const dailyChange = 1234.56; // Mock for now
+  const dailyChangePercent = 2.45; // Mock for now
 
   const handleNewTrade = async () => {
     if (symbol.trim() && quantity && price) {
@@ -49,8 +109,8 @@ export default function PortfolioPage({ user }: PortfolioPageProps) {
         setPrice("");
         setAction("buy");
         setIsDialogOpen(false);
-        refetchTransactions();
-      } catch (error) {
+        void refetchTransactions();
+      } catch {
         window.alert("Failed to create transaction");
       }
     }
@@ -229,33 +289,9 @@ export default function PortfolioPage({ user }: PortfolioPageProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {positions.map((position) => {
-                    const currentPrice = 178.45;
-                    const marketValue = position.quantity * currentPrice;
-                    const costBasis = position.quantity * position.avgCost;
-                    const profitLoss = marketValue - costBasis;
-                    const returnPercent = ((profitLoss / costBasis) * 100);
-
-                    return (
-                      <TableRow key={position.id}>
-                        <TableCell className="font-medium">{position.symbol}</TableCell>
-                        <TableCell>{position.quantity}</TableCell>
-                        <TableCell>${position.avgCost.toFixed(2)}</TableCell>
-                        <TableCell>${currentPrice.toFixed(2)}</TableCell>
-                        <TableCell>${marketValue.toFixed(2)}</TableCell>
-                        <TableCell>
-                          <span className={profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {profitLoss >= 0 ? '+' : ''}${profitLoss.toFixed(2)}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={profitLoss >= 0 ? "default" : "destructive"}>
-                            {profitLoss >= 0 ? '+' : ''}{returnPercent.toFixed(2)}%
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {positions.map((position) => (
+                    <PositionRow key={position.id} position={position} />
+                  ))}
                 </TableBody>
               </Table>
             )}
@@ -296,7 +332,7 @@ export default function PortfolioPage({ user }: PortfolioPageProps) {
             {!transactions || transactions.length === 0 ? (
               <div className="py-12 text-center">
                 <p className="text-muted-foreground">No transactions yet.</p>
-                <p className="mt-2 text-sm text-muted-foreground">Click "New Trade" to record your first transaction.</p>
+                <p className="mt-2 text-sm text-muted-foreground">Click &quot;New Trade&quot; to record your first transaction.</p>
               </div>
             ) : (
               <Table>

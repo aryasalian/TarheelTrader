@@ -1,131 +1,258 @@
-import { Subject } from "@/server/models/auth";
 import { createSupabaseServerClient } from "@/utils/supabase/clients/server-props";
 import { GetServerSidePropsContext } from "next";
-import { api } from "@/utils/trpc/api";
-import { useState, useEffect } from "react";
+import { api, type RouterOutputs } from "@/utils/trpc/api";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Star, Filter, TrendingUp } from "lucide-react";
 import { Navigation } from "@/components/navigation";
+import { usePriceStore } from "@/store/priceStore";
 
-type ScreenerPageProps = { user: Subject };
+type WatchlistEntry = RouterOutputs["watchlist"]["getWatchlist"][number];
 
-interface StockData {
-  ticker: string;
-  name: string;
-  price: number;
-  change: number;
-  changePercent: number;
-  volume: string;
-  volatility: string;
+type ScreenerStock = RouterOutputs["market"]["getScreenerStocks"][number];
+type StockRowData = ScreenerStock & {
   isFavorite: boolean;
+};
+
+function WatchlistItemRow({
+  item,
+  onRemove,
+  reference,
+}: {
+  item: WatchlistEntry;
+  onRemove: (id: string) => void;
+  reference?: ScreenerStock;
+}) {
+  const updatePrice = usePriceStore((state) => state.updatePrice);
+  const priceRecord = usePriceStore((state) => state.prices[item.symbol] ?? null);
+
+  const { data: fallbackPrice } = api.position.getStockPrice.useQuery(
+    { symbol: item.symbol },
+    {
+      enabled: !reference && !priceRecord,
+      refetchInterval: 30000,
+      staleTime: 20000,
+    },
+  );
+
+  useEffect(() => {
+    if (!reference && fallbackPrice?.price) {
+      updatePrice(item.symbol, fallbackPrice.price, fallbackPrice.success);
+    }
+  }, [reference, fallbackPrice, item.symbol, updatePrice]);
+
+  const currentPrice = reference?.price ?? priceRecord?.price ?? fallbackPrice?.price ?? 0;
+  const isEstimate = reference
+    ? reference.isEstimate
+    : priceRecord
+      ? !priceRecord.success
+      : !(fallbackPrice?.success ?? false);
+  const changePercent = reference?.changePercent ?? 0;
+
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{item.symbol}</TableCell>
+      <TableCell>
+        {currentPrice > 0 ? `$${currentPrice.toFixed(2)}` : "—"}
+        {isEstimate && currentPrice > 0 && (
+          <span className="ml-1 text-xs text-muted-foreground">(est)</span>
+        )}
+      </TableCell>
+      <TableCell>
+        {reference ? (
+          <span className={changePercent >= 0 ? "text-green-600" : "text-red-600"}>
+            {changePercent >= 0 ? "+" : ""}{changePercent.toFixed(2)}%
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
+      </TableCell>
+      <TableCell>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onRemove(item.id)}
+          className="text-yellow-500 hover:text-yellow-600"
+        >
+          <Star className="h-5 w-5 fill-yellow-500" />
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+}
+function WatchlistItemRow({
+  item,
+  onRemove,
+  reference,
+}: {
+  item: WatchlistEntry;
+  onRemove: (id: string) => void;
+  reference?: ScreenerStock;
+}) {
+  const updatePrice = usePriceStore((state) => state.updatePrice);
+  const priceRecord = usePriceStore((state) => state.prices[item.symbol] ?? null);
+
+  const { data: fallbackPrice } = api.position.getStockPrice.useQuery(
+    { symbol: item.symbol },
+    {
+      enabled: !reference && !priceRecord,
+      refetchInterval: 30000,
+      staleTime: 20000,
+    },
+  );
+
+  useEffect(() => {
+    if (!reference && fallbackPrice?.price) {
+      updatePrice(item.symbol, fallbackPrice.price, fallbackPrice.success);
+    }
+  }, [reference, fallbackPrice, item.symbol, updatePrice]);
+
+  const currentPrice = reference?.price ?? priceRecord?.price ?? fallbackPrice?.price ?? 0;
+  const isEstimate = reference
+    ? reference.isEstimate
+    : priceRecord
+      ? !priceRecord.success
+      : !(fallbackPrice?.success ?? false);
+  const changePercent = reference?.changePercent ?? 0;
+
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{item.symbol}</TableCell>
+      <TableCell>
+        {currentPrice > 0 ? `$${currentPrice.toFixed(2)}` : "—"}
+        {isEstimate && currentPrice > 0 && (
+          <span className="ml-1 text-xs text-muted-foreground">(est)</span>
+        )}
+      </TableCell>
+      <TableCell>
+        {reference ? (
+          <span className={changePercent >= 0 ? "text-green-600" : "text-red-600"}>
+            {changePercent >= 0 ? "+" : ""}
+            {changePercent.toFixed(2)}%
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
+      </TableCell>
+      <TableCell>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onRemove(item.id)}
+          className="text-yellow-500 hover:text-yellow-600"
+        >
+          <Star className="h-5 w-5 fill-yellow-500" />
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
 }
 
-const mockStocks: StockData[] = [
-  {
-    ticker: "AAPL",
-    name: "Apple Inc",
-    price: 178.45,
-    change: 2.34,
-    changePercent: 1.33,
-    volume: "53.2M",
-    volatility: "HIGH",
-    isFavorite: true,
-  },
-  {
-    ticker: "AAPL",
-    name: "Apple Inc",
-    price: 178.45,
-    change: 2.34,
-    changePercent: 1.33,
-    volume: "53.2M",
-    volatility: "HIGH",
-    isFavorite: true,
-  },
-  {
-    ticker: "AAPL",
-    name: "Apple Inc",
-    price: 178.45,
-    change: 2.34,
-    changePercent: 1.33,
-    volume: "53.2M",
-    volatility: "HIGH",
-    isFavorite: true,
-  },
-  {
-    ticker: "AAPL",
-    name: "Apple Inc",
-    price: 178.45,
-    change: 2.34,
-    changePercent: 1.33,
-    volume: "53.2M",
-    volatility: "HIGH",
-    isFavorite: false,
-  },
-  {
-    ticker: "AAPL",
-    name: "Apple Inc",
-    price: 178.45,
-    change: 2.34,
-    changePercent: 1.33,
-    volume: "53.2M",
-    volatility: "HIGH",
-    isFavorite: false,
-  },
-];
+function ScreenerResultRow({ stock, onToggleFavorite }: { stock: StockRowData; onToggleFavorite: (ticker: string, isFavorite: boolean) => void }) {
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{stock.ticker}</TableCell>
+      <TableCell>
+        ${stock.price.toFixed(2)}
+        {stock.isEstimate && <span className="ml-1 text-xs text-muted-foreground">(est)</span>}
+      </TableCell>
+      <TableCell>
+        <span className={stock.changePercent >= 0 ? "text-green-600" : "text-red-600"}>
+          {stock.changePercent >= 0 ? "+" : ""}{stock.changePercent.toFixed(2)}%
+        </span>
+      </TableCell>
+      <TableCell>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onToggleFavorite(stock.ticker, stock.isFavorite)}
+          aria-label={stock.isFavorite ? "Remove from watchlist" : "Add to watchlist"}
+          className={stock.isFavorite ? "text-yellow-500 hover:text-yellow-600" : "text-muted-foreground hover:text-foreground"}
+        >
+          <Star className={`h-5 w-5 ${stock.isFavorite ? "fill-yellow-500" : ""}`} />
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+}
 
-export default function ScreenerPage({ user }: ScreenerPageProps) {
+export default function ScreenerPage() {
   const { data: watchlist, refetch: refetchWatchlist } = api.watchlist.getWatchlist.useQuery();
   const addToWatchlist = api.watchlist.addToWatchlist.useMutation();
   const removeFromWatchlist = api.watchlist.removeFromWatchlist.useMutation();
-  
+  const priceMap = usePriceStore((state) => state.prices);
+
   const [sector, setSector] = useState("all");
   const [volatility, setVolatility] = useState("all");
-  const [priceRange, setPriceRange] = useState([0]);
-  const [stocks, setStocks] = useState<StockData[]>(mockStocks);
-  const [stockPrices, setStockPrices] = useState<Record<string, any>>({});
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, MAX_STOCK_PRICE]);
 
-  useEffect(() => {
-    if (watchlist && watchlist.length > 0) {
-      const mockPrices: Record<string, any> = {};
-      watchlist.forEach((item) => {
-        mockPrices[item.symbol] = {
-          symbol: item.symbol,
-          price: 178.45,
-          change: 2.34,
-          changePercent: 1.33,
-          marketCap: "$2.8T",
-        };
-      });
-      setStockPrices(mockPrices);
-    }
-  }, [watchlist]);
+  const watchlistSymbols = useMemo(
+    () => (watchlist ? watchlist.map((item) => item.symbol.toUpperCase()) : []),
+    [watchlist],
+  );
+
+  const symbolUniverse = useMemo(() => {
+    const base = STOCK_UNIVERSE.map((stock) => stock.ticker);
+    return Array.from(new Set([...base, ...watchlistSymbols])).sort();
+  }, [watchlistSymbols]);
+
+  usePriceSync(symbolUniverse);
 
   const handleResetFilters = () => {
     setSector("all");
     setVolatility("all");
-    setPriceRange([0]);
+    setPriceRange([0, MAX_STOCK_PRICE]);
   };
+
+  const handlePriceRangeChange = (value: number[]) => {
+    if (value.length === 2) {
+      const [first, second] = value;
+      setPriceRange([Math.min(first, second), Math.max(first, second)]);
+    }
+  };
+
+  const filteredStocks = useMemo<StockRowData[]>(() => {
+    const favorites = new Set(watchlistSymbols);
+    return STOCK_UNIVERSE.filter((stock) => {
+      const priceRecord = priceMap[stock.ticker];
+      const currentPrice = priceRecord?.price ?? stock.basePrice;
+      const matchesSector = sector === "all" || stock.sector === sector;
+      const matchesVolatility = volatility === "all" || stock.volatility === volatility;
+      const matchesPrice = currentPrice >= priceRange[0] && currentPrice <= priceRange[1];
+      return matchesSector && matchesVolatility && matchesPrice;
+    }).map((stock) => {
+      const priceRecord = priceMap[stock.ticker];
+      const currentPrice = priceRecord?.price ?? stock.basePrice;
+      const isEstimate = priceRecord ? !priceRecord.success : true;
+      const changePercent = stock.basePrice > 0
+        ? ((currentPrice - stock.basePrice) / stock.basePrice) * 100
+        : 0;
+      return {
+        ...stock,
+        price: currentPrice,
+        changePercent,
+        isFavorite: favorites.has(stock.ticker),
+        isEstimate,
+      };
+    });
+  }, [priceMap, watchlistSymbols, sector, volatility, priceRange]);
 
   const handleToggleFavorite = async (ticker: string, isFavorite: boolean) => {
     try {
       if (isFavorite) {
-        const item = watchlist?.find(w => w.symbol === ticker);
+        const item = watchlist?.find((w) => w.symbol === ticker);
         if (item) {
           await removeFromWatchlist.mutateAsync({ id: item.id });
         }
       } else {
         await addToWatchlist.mutateAsync({ symbol: ticker });
       }
-      refetchWatchlist();
-      setStocks(stocks.map(stock => 
-        stock.ticker === ticker ? { ...stock, isFavorite: !isFavorite } : stock
-      ));
-    } catch (error) {
+      void refetchWatchlist();
+    } catch {
       window.alert("Failed to update watchlist");
     }
   };
@@ -133,14 +260,10 @@ export default function ScreenerPage({ user }: ScreenerPageProps) {
   const handleRemoveFromWatchlist = async (id: string) => {
     try {
       await removeFromWatchlist.mutateAsync({ id });
-      refetchWatchlist();
-    } catch (error) {
+      void refetchWatchlist();
+    } catch {
       window.alert("Failed to remove from watchlist");
     }
-  };
-
-  const isInWatchlist = (ticker: string) => {
-    return watchlist?.some(w => w.symbol === ticker) || false;
   };
 
   return (
@@ -181,11 +304,14 @@ export default function ScreenerPage({ user }: ScreenerPageProps) {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Price Range: $0 - $1000</label>
+                <label className="text-sm font-medium">
+                  Price Range: ${priceRange[0].toFixed(0)} - ${priceRange[1].toFixed(0)}
+                </label>
                 <Slider
                   value={priceRange}
-                  onValueChange={setPriceRange}
-                  max={1000}
+                  onValueChange={handlePriceRangeChange}
+                  min={0}
+                  max={MAX_STOCK_PRICE}
                   step={10}
                   className="w-full"
                 />
@@ -240,30 +366,13 @@ export default function ScreenerPage({ user }: ScreenerPageProps) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {watchlist.map((item) => {
-                      const priceData = stockPrices[item.symbol];
-                      return (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-medium">{item.symbol}</TableCell>
-                          <TableCell>${priceData?.price.toFixed(2) || "0.00"}</TableCell>
-                          <TableCell>
-                            <span className="text-green-600">
-                              +{priceData?.changePercent.toFixed(2) || "0.00"}%
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRemoveFromWatchlist(item.id)}
-                              className="text-yellow-500 hover:text-yellow-600"
-                            >
-                              <Star className="h-5 w-5 fill-yellow-500" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {watchlist.map((item) => (
+                      <WatchlistItemRow 
+                        key={item.id} 
+                        item={item} 
+                        onRemove={handleRemoveFromWatchlist}
+                      />
+                    ))}
                   </TableBody>
                 </Table>
               )}
@@ -275,7 +384,7 @@ export default function ScreenerPage({ user }: ScreenerPageProps) {
         <Card>
           <CardHeader>
             <CardTitle>Results</CardTitle>
-            <CardDescription>12 stocks match your criteria</CardDescription>
+            <CardDescription>{filteredStocks.length} stocks match your criteria</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -288,27 +397,21 @@ export default function ScreenerPage({ user }: ScreenerPageProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {stocks.map((stock, index) => (
-                  <TableRow key={index}>
-                    <TableCell className="font-medium">{stock.ticker}</TableCell>
-                    <TableCell>${stock.price.toFixed(2)}</TableCell>
-                    <TableCell>
-                      <span className="text-green-600">
-                        +{stock.changePercent.toFixed(2)}%
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleToggleFavorite(stock.ticker, isInWatchlist(stock.ticker))}
-                        className={isInWatchlist(stock.ticker) ? "text-yellow-500 hover:text-yellow-600" : "text-muted-foreground hover:text-foreground"}
-                      >
-                        <Star className={`h-5 w-5 ${isInWatchlist(stock.ticker) ? "fill-yellow-500" : ""}`} />
-                      </Button>
+                {filteredStocks.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                      No stocks match your current filters.
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  filteredStocks.map((stock) => (
+                    <ScreenerResultRow
+                      key={stock.ticker}
+                      stock={stock}
+                      onToggleFavorite={handleToggleFavorite}
+                    />
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>

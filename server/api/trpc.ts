@@ -24,6 +24,8 @@ import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import superjson from "superjson";
 import { ZodError } from "zod";
 import { Subject } from "../models/auth";
+import { db } from "@/server/db";
+import { profiles } from "@/server/db/schema";
 
 /** Define the context */
 interface CreateContextOptions {
@@ -56,6 +58,13 @@ export const createTRPCContext = async ({
  * ZodErrors so that you get typesafety on the frontend if your procedure fails due to validation
  * errors on the backend.
  */
+const ensureProfileExists = async (userId: string) => {
+  await db
+    .insert(profiles)
+    .values({ id: userId, username: userId })
+    .onConflictDoNothing();
+};
+
 const t = initTRPC.context<typeof createTRPCContext>().create({
   transformer: superjson,
   errorFormatter({ shape, error }) {
@@ -122,15 +131,16 @@ export const publicProcedure = t.procedure.use(timingMiddleware);
  */
 export const protectedProcedure = t.procedure
   .use(timingMiddleware)
-  .use(({ ctx, next }) => {
+  .use(async ({ ctx, next }) => {
     if (!ctx.subject) {
       throw new TRPCError({ code: "UNAUTHORIZED" });
     }
+
+    await ensureProfileExists(ctx.subject.id);
+
     return next({
       ctx: {
-        // infers the `subject` as non-nullable at this point since it is
-        // a guarantee that the user is signed in
-        subject: ctx.subject!,
+        subject: ctx.subject,
       },
     });
   });
