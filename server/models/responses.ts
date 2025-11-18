@@ -20,7 +20,7 @@ export const Positions = z.array(
     symbol: z.string(),
     quantity: z.number(),
     avgCost: z.number(),
-    lastUpdated: z.string().datetime(),
+    lastUpdated: z.string().nullable(),
   }),
 );
 
