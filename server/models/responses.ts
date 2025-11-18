@@ -24,6 +24,12 @@ export const Positions = z.array(
   }),
 );
 
+export const Price = z.object({
+  symbol: z.string(),
+  price: z.number(),
+  success: z.boolean(),
+});
+
 export const Transaction = z.object({
   id: z.string(),
   userId: z.string(),

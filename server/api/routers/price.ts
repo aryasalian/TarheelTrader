@@ -1,39 +1,16 @@
-/**
- * tRPC APIs that contains all of the functionality for creating,
- * reading, updating, and deleting data in our database relating to
- * profiles.
- *
- */
-
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { Positions, Price } from "@/server/models/responses";
-import { db } from "@/server/db";
-import { position } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getLatestPrice, getMultiplePrices } from "@/utils/alpaca/getPrice";
 
-const getPositions = protectedProcedure
-  .output(Positions)
-  .query(async ({ ctx }) => {
-    const { subject } = ctx;
-    const raw = await db.query.position.findMany({
-      where: eq(position.userId, subject.id),
-    });
-    // We wont throw error for empty array, that's a valid response //
-    return Positions.parse(
-      raw.map((pos) => ({
-        ...pos,
-        quantity: Number(pos.quantity),
-        avgCost: Number(pos.avgCost),
-        lastUpdated: pos.lastUpdated,
-      })),
-    );
-  });
-
-const getStockPrice = protectedProcedure
+export const getStockPrice = protectedProcedure
   .input(z.object({ symbol: z.string() }))
-  .output(Price)
+  .output(
+    z.object({
+      symbol: z.string(),
+      price: z.number(),
+      success: z.boolean(),
+    }),
+  )
   .query(async ({ input }) => {
     const symbol = input.symbol.toUpperCase();
     try {
@@ -45,9 +22,17 @@ const getStockPrice = protectedProcedure
     }
   });
 
-const getStockPrices = protectedProcedure
+export const getStockPrices = protectedProcedure
   .input(z.object({ symbols: z.array(z.string()).min(1).max(50) }))
-  .output(z.array(Price))
+  .output(
+    z.array(
+      z.object({
+        symbol: z.string(),
+        price: z.number(),
+        success: z.boolean(),
+      }),
+    ),
+  )
   .query(async ({ input }) => {
     const uniqueSymbols = [
       ...new Set(input.symbols.map((s) => s.toUpperCase())),
@@ -76,8 +61,7 @@ const getStockPrices = protectedProcedure
 /**
  * Router for all position-related APIs.
  */
-export const positionApiRouter = createTRPCRouter({
-  getPositions: getPositions,
+export const pricesApiRouter = createTRPCRouter({
   getStockPrice: getStockPrice,
   getStockPrices: getStockPrices,
 });

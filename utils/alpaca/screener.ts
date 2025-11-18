@@ -58,13 +58,12 @@ export async function fetchTopScreenerStocks(limit = 30) {
 
 export async function fetchSnapshots(symbols: string[]) {
   if (symbols.length === 0) return {} as Record<string, SnapshotEntry>;
-  const params = {
-    symbols: symbols.join(","),
-  };
 
   const data = await alpacaFetch<{ snapshots: Record<string, SnapshotEntry> }>(
     "/v2/stocks/snapshots",
-    params,
+    {
+      symbols: symbols.join(","),
+    },
   );
 
   return data.snapshots || {};
