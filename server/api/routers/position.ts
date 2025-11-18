@@ -5,6 +5,7 @@
  *
  */
 
+import { getLatestPrice } from "@/utils/alpaca/getPrice";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { Positions } from "@/server/models/responses";
 import { db } from "@/server/db";
@@ -38,20 +39,16 @@ const getPortfolioValue = protectedProcedure
       return 0; // empty portfolio
     }
 
-    // Fetch market prices from Alpaca
-    // TODO: replace with Alpaca API call
+    // Price lookup per symbol & value of each position calculated
+    const values = await Promise.all(
+      positions.map(async (pos) => {
+        const price = await getLatestPrice(pos.symbol);
+        return pos.quantity * price;
+      }),
+    );
 
-    // Price lookup per symbol
-    const fetchPrice = async (symbol: string): Promise<number> => {
-      // just mocking for now, you replace it later
-      return 100;
-    };
-
-    let total = 0;
-    for (const pos of positions) {
-      const price = await fetchPrice(pos.symbol);
-      total += pos.quantity * price;
-    }
+    // Product-Sum all positions
+    const total = values.reduce((a, b) => a + b, 0);
 
     // Return the portfolio value
     return z.number().parse(total);
