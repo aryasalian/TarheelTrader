@@ -15,11 +15,18 @@ const getPositions = protectedProcedure
   .output(Positions)
   .query(async ({ ctx }) => {
     const { subject } = ctx;
-    const data = await db.query.position.findMany({
+    const raw = await db.query.position.findMany({
       where: eq(position.userId, subject.id),
     });
     // We wont throw error for empty array, that's a valid response //
-    return Positions.parse(data);
+    return Positions.parse(
+      raw.map((pos) => ({
+        ...pos,
+        quantity: Number(pos.quantity),
+        avgCost: Number(pos.avgCost),
+        lastUpdated: pos.lastUpdated,
+      })),
+    );
   });
 
 /**
