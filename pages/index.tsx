@@ -6,7 +6,6 @@ import { Subject } from "@/server/models/auth";
 import { createSupabaseServerClient } from "@/utils/supabase/clients/server-props";
 import { GetServerSidePropsContext } from "next";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Filter, BarChart3 } from "lucide-react";
 import { Navigation } from "@/components/navigation";
