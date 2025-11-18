@@ -36,7 +36,7 @@ export function usePortfolioValue(positions: Position[]) {
     // Run every 10 seconds, so 6 API calls made per min for a ticker
     // Due to free tier 200 API Call limit, app can host 33 ticker portfolios only
     function start() {
-      interval = setInterval(updateValue, 10_000);
+      interval = setInterval(updateValue, 15_000);
     }
     function stop() {
       if (interval) {
