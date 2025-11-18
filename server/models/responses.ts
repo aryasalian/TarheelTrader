@@ -6,7 +6,6 @@
 
 import { z } from "zod";
 
-/** Defines the schema for profile and author data. */
 export const Profile = z.object({
   id: z.string(),
   username: z.string(),
@@ -24,3 +23,30 @@ export const Positions = z.array(
     lastUpdated: z.string().datetime(),
   }),
 );
+
+export const Transaction = z.object({
+  id: z.string(),
+  userId: z.string(),
+  symbol: z.string(),
+  quantity: z.string(),
+  price: z.string(),
+  executedAt: z.date(),
+  action: z.enum(["buy", "sell"]),
+});
+
+export const Transactions = z.array(Transaction);
+
+export const WatchlistItem = z.object({
+  id: z.string(),
+  userId: z.string(),
+  symbol: z.string(),
+  addedAt: z.date(),
+});
+
+export const WatchlistItems = z.array(WatchlistItem);
+
+export const TransactionStats = z.object({
+  totalTransactions: z.number(),
+  totalBought: z.number(),
+  totalSold: z.number(),
+});
