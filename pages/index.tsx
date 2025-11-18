@@ -2,13 +2,19 @@
  * Home page template.
  */
 
+import { Button } from "@/components/ui/button";
 import { Subject } from "@/server/models/auth";
 import { createSupabaseServerClient } from "@/utils/supabase/clients/server-props";
 import { GetServerSidePropsContext } from "next";
+import { useRouter } from "next/router";
 
 type HomePageProps = { user: Subject };
 export default function HomePage({ user }: HomePageProps) {
-  
+  const router = useRouter();
+  function goToPortfolio() {
+    router.push("/portfolio");
+  }
+
   return (
     <div className="flex flex-col gap-3 p-8">
       <p className="text-2xl font-bold">COMP 426 Final Project Template</p>
@@ -16,6 +22,9 @@ export default function HomePage({ user }: HomePageProps) {
         If you have any questions, please find us in office hours!
         Your ID: { user.id }
       </p>
+      <Button onClick={goToPortfolio} className="mt-4">
+        Go to Portfolio
+      </Button>
     </div>
   )
 }
