@@ -13,3 +13,14 @@ export const Profile = z.object({
   createdAt: z.string().datetime(),
   avatarUrl: z.string().nullish(),
 });
+
+export const Positions = z.array(
+  z.object({
+    id: z.string(),
+    userId: z.string(),
+    symbol: z.string(),
+    quantity: z.number(),
+    avgCost: z.number(),
+    lastUpdated: z.string().datetime(),
+  }),
+);

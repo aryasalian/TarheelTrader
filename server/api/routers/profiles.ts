@@ -73,12 +73,10 @@ const handleNewUser = protectedProcedure
   });
 
 /**
- * TODO: Updates a user's avatar in Supabase storage.
+ * Updates a user's avatar in Supabase storage.
  *
  * This function updates the avatar URL for the currently signed in
  * user to match the attachment URL provided.
- *
- * This method should succeed silently (return nothing).
  */
 const updateProfilePicture = protectedProcedure
   .input(DraftProfileImage)
