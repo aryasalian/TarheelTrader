@@ -36,6 +36,7 @@ export const Transaction = z.object({
   symbol: z.string(),
   quantity: z.string(),
   price: z.string(),
+  realizedPnl: z.string(),
   executedAt: z.date(),
   action: z.enum(["buy", "sell"]),
 });
@@ -55,4 +56,5 @@ export const TransactionStats = z.object({
   totalTransactions: z.number(),
   totalBought: z.number(),
   totalSold: z.number(),
+  totalRealizedPnl: z.number(),
 });

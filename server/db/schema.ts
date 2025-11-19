@@ -59,6 +59,7 @@ export const transaction = pgTable("transaction", {
   symbol: text("symbol").notNull(),
   quantity: numeric("quantity").notNull(),
   price: numeric("price").notNull(),
+  realizedPnl: numeric("realized_pnl").notNull().default("0"), // ONLY non-zero for sells
   executedAt: timestamp("executed_at").notNull(),
   action: actionEnum("action").notNull(),
 });

@@ -6,15 +6,18 @@ import { randomUUID } from "crypto";
 import { NewTransaction } from "@/server/models/inputs";
 import { TRPCError } from "@trpc/server";
 import { getLatestPrice } from "@/utils/alpaca/getPrice";
+import { Transactions, TransactionStats } from "@/server/models/responses";
 
-const getTransactions = protectedProcedure.query(async ({ ctx }) => {
-  const { subject } = ctx;
-  const data = await db.query.transaction.findMany({
-    where: eq(transaction.userId, subject.id),
-    orderBy: [desc(transaction.executedAt)],
+const getTransactions = protectedProcedure
+  .output(Transactions)
+  .query(async ({ ctx }) => {
+    const { subject } = ctx;
+    const data = await db.query.transaction.findMany({
+      where: eq(transaction.userId, subject.id),
+      orderBy: [desc(transaction.executedAt)],
+    });
+    return data;
   });
-  return data;
-});
 
 const createTransaction = protectedProcedure
   .input(NewTransaction)
@@ -25,26 +28,14 @@ const createTransaction = protectedProcedure
     const action = input.action;
 
     const livePrice = await getLatestPrice(ticker);
+    let realizedPnl = 0; // won't be editted for buys
 
-    // 1. INSERT transaction itself
-    const [newTransaction] = await db
-      .insert(transaction)
-      .values({
-        id: randomUUID(),
-        userId: subject.id,
-        symbol: ticker,
-        quantity: qty.toString(),
-        price: livePrice.toString(),
-        action,
-        executedAt: new Date(),
-      })
-      .returning();
-
-    // 2. FETCH existing position for user + symbol
+    // 1. FETCH existing position for user + symbol
     const existing = await db.query.position.findFirst({
       where: and(eq(position.userId, subject.id), eq(position.symbol, ticker)),
     });
 
+    // 2. CREATE positions
     // BUY LOGIC
     if (action === "buy") {
       if (!existing) {
@@ -85,13 +76,15 @@ const createTransaction = protectedProcedure
         });
       }
 
+      // Realized PnL for this trade
+      realizedPnl = (livePrice - parseFloat(existing.avgCost)) * qty;
       const oldQty = parseFloat(existing.quantity);
       const newQty = oldQty - qty;
 
       if (newQty < 0) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Sell quantity exceeds position quantity.",
+          message: "Sell quantity exceeds position quantity",
         });
       }
 
@@ -110,34 +103,54 @@ const createTransaction = protectedProcedure
       }
     }
 
+    // 3. INSERT transaction
+    const [newTransaction] = await db
+      .insert(transaction)
+      .values({
+        id: randomUUID(),
+        userId: subject.id,
+        symbol: ticker,
+        quantity: qty.toString(),
+        price: livePrice.toString(),
+        realizedPnl: realizedPnl.toString(), // 0 for buys, non-zero for sells
+        action,
+        executedAt: new Date(),
+      })
+      .returning();
+
     return newTransaction;
   });
 
-const getTransactionStats = protectedProcedure.query(async ({ ctx }) => {
-  const { subject } = ctx;
-  const transactions = await db.query.transaction.findMany({
-    where: eq(transaction.userId, subject.id),
+const getTransactionStats = protectedProcedure
+  .output(TransactionStats)
+  .query(async ({ ctx }) => {
+    const { subject } = ctx;
+    const transactions = await db.query.transaction.findMany({
+      where: eq(transaction.userId, subject.id),
+    });
+
+    let totalBought = 0;
+    let totalSold = 0;
+    const totalTransactions = transactions.length;
+    let totalRealizedPnl = 0;
+
+    transactions.forEach((txn) => {
+      const amount = parseFloat(txn.quantity) * parseFloat(txn.price);
+      if (txn.action === "buy") {
+        totalBought += amount;
+      } else {
+        totalSold += amount;
+      }
+      totalRealizedPnl += parseFloat(txn.realizedPnl);
+    });
+
+    return {
+      totalTransactions,
+      totalBought,
+      totalSold,
+      totalRealizedPnl,
+    };
   });
-
-  let totalBought = 0;
-  let totalSold = 0;
-  const totalTransactions = transactions.length;
-
-  transactions.forEach((txn) => {
-    const amount = parseFloat(txn.quantity) * parseFloat(txn.price);
-    if (txn.action === "buy") {
-      totalBought += amount;
-    } else {
-      totalSold += amount;
-    }
-  });
-
-  return {
-    totalTransactions,
-    totalBought,
-    totalSold,
-  };
-});
 
 export const transactionApiRouter = createTRPCRouter({
   getTransactions: getTransactions,

@@ -113,7 +113,7 @@ export default function PortfolioPage() {
       toast.error("Enter a symbol");
       return;
     }
-    if (!quantity || isNaN(parseFloat(quantity))) {
+    if (!quantity || isNaN(parseFloat(quantity)) || parseFloat(quantity) < 0) {
       toast.error("Enter a valid quantity");
       return;
     }
@@ -219,18 +219,18 @@ export default function PortfolioPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total P/L</CardTitle>
-              {pf_stats.pnl >= 0 ? (
+              {pf_stats.totalPnl >= 0 ? (
                 <TrendingUp className="h-4 w-4 text-green-600" />
               ) : (
                 <TrendingDown className="h-4 w-4 text-red-600" />
               )}
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${pf_stats.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {pf_stats.pnl >= 0 ? '+' : ''}${pf_stats.pnl.toFixed(2)}
+              <div className={`text-2xl font-bold ${pf_stats.totalPnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {pf_stats.totalPnl >= 0 ? '+' : ''}${pf_stats.totalPnl.toFixed(2)}
               </div>
-              <p className={`text-xs ${pf_stats.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {pf_stats.pnl >= 0 ? '+' : ''}{pf_stats.pnlPercent.toFixed(2)}% all time
+              <p className={`text-xs ${pf_stats.totalPnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {pf_stats.totalPnl >= 0 ? '+' : ''}{pf_stats.pnlPercent.toFixed(2)}% all time
               </p>
             </CardContent>
           </Card>
@@ -243,6 +243,93 @@ export default function PortfolioPage() {
             <CardContent>
               <div className="text-2xl font-bold">{positions?.length || 0}</div>
               <p className="text-xs text-muted-foreground">Active holdings</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="mb-6 grid gap-6 md:grid-cols-4">
+          {/* Best Performer */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">Best Performer</CardTitle>
+              {pf_stats.best && (
+                <Badge variant="default">{pf_stats.best.symbol}</Badge>
+              )}
+            </CardHeader>
+            <CardContent>
+              {pf_stats.best ? (
+                <>
+                  <div className="text-xl font-bold text-green-600">
+                    {pf_stats.best.pnlPercent.toFixed(2)}%
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    +${pf_stats.best.pnl.toFixed(2)}
+                  </p>
+                </>
+              ) : (
+                <p className="text-muted-foreground text-sm">No positions yet</p>
+              )}
+            </CardContent>
+          </Card>
+          
+          {/* Worst Performer */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">Worst Performer</CardTitle>
+              {pf_stats.worst && (
+                <Badge variant="destructive">{pf_stats.worst.symbol}</Badge>
+              )}
+            </CardHeader>
+            <CardContent>
+              {pf_stats.worst ? (
+                <>
+                  <div className="text-xl font-bold text-red-600">
+                    {pf_stats.worst.pnlPercent.toFixed(2)}%
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {pf_stats.worst.pnl >= 0 ? "+" : "-"}$
+                    {Math.abs(pf_stats.worst.pnl).toFixed(2)}
+                  </p>
+                </>
+              ) : (
+                <p className="text-muted-foreground text-sm">No positions yet</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Realized PnL */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">Realized P/L</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div
+                className={`text-2xl font-bold ${
+                  pf_stats.realized >= 0 ? "text-green-600" : "text-red-600"
+                }`}
+              >
+                {pf_stats.realized >= 0 ? "+" : "-"}$
+                {Math.abs(pf_stats.realized).toFixed(2)}
+              </div>
+              <p className="text-xs text-muted-foreground">Closed trade profits</p>
+            </CardContent>
+          </Card>
+
+          {/* Unrealized PnL */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">Unrealized P/L</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div
+                className={`text-2xl font-bold ${
+                  pf_stats.unrealized >= 0 ? "text-green-600" : "text-red-600"
+                }`}
+              >
+                {pf_stats.unrealized >= 0 ? "+" : "-"}$
+                {Math.abs(pf_stats.unrealized).toFixed(2)}
+              </div>
+              <p className="text-xs text-muted-foreground">Open position P/L</p>
             </CardContent>
           </Card>
         </div>
