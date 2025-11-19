@@ -13,6 +13,7 @@ import { positionApiRouter } from "./routers/position";
 import { transactionApiRouter } from "./routers/transaction";
 import { watchlistApiRouter } from "./routers/watchlist";
 import { marketApiRouter } from "./routers/market";
+import { analyticsApiRouter } from "./routers/analytics";
 
 // [NOTE]
 // To expose a new API, add a new router here.
@@ -24,6 +25,7 @@ export const appRouter = createTRPCRouter({
   transaction: transactionApiRouter,
   watchlist: watchlistApiRouter,
   market: marketApiRouter,
+  analytics: analyticsApiRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Navigation } from "@/components/navigation";
+import { PortfolioChart } from "@/components/PortfolioChart";
 import { TrendingUp, TrendingDown, DollarSign, Activity, Plus } from "lucide-react";
 import { usePortfolioStats } from "@/hooks/usePortfolioStats";
 import { usePriceSync } from "@/hooks/usePriceSync";
@@ -69,6 +70,9 @@ function PositionRow({ row }: { row: EnrichedPositionRow }) {
 export default function PortfolioPage() {
   const utils = api.useUtils();
   const { data: positions = [] } = api.position.getPositions.useQuery();
+  const { data: portfolioHistory = [] } = api.position.getPortfolioHistory.useQuery({
+    days: 30,
+  });
   const symbols = positions.map((p) => p.symbol);
   // Sync prices globally using Zustand + tRPC
   usePriceSync(symbols, {
@@ -340,9 +344,7 @@ export default function PortfolioPage() {
             <CardDescription>Historical performance chart</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex h-64 items-center justify-center rounded-lg border-2 border-dashed">
-              <p className="text-muted-foreground">Chart placeholder - Will integrate with Chart.js</p>
-            </div>
+            <PortfolioChart data={portfolioHistory} />
           </CardContent>
         </Card>
 

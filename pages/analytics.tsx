@@ -8,42 +8,46 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Navigation } from "@/components/navigation";
-import { Sparkles, TrendingUp, TrendingDown, PieChart, BarChart3 } from "lucide-react";
+import { PortfolioChart } from "@/components/PortfolioChart";
+import { Sparkles, TrendingUp, TrendingDown, PieChart, BarChart3, AlertCircle } from "lucide-react";
 
 type AnalyticsPageProps = { user: Subject };
 
 export default function AnalyticsPage({ user }: AnalyticsPageProps) {
-  const { data: positions } = api.position.getPositions.useQuery();
-  const [aiInsights, setAiInsights] = useState<string>("");
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiData, setAiData] = useState<{
+    insights: string;
+    recommendations: string[];
+    riskAssessment: string;
+  } | null>(null);
 
-  const generateAIInsights = async () => {
-    setIsGenerating(true);
-    setTimeout(() => {
-      setAiInsights(
-        "Based on your portfolio analysis, you're currently overweight in the technology sector, representing approximately 65% of your total holdings. Your top performer is AAPL with a 12.5% gain, while your portfolio shows strong diversification across 8 different positions. Your risk profile indicates moderate volatility with a beta of 1.2, suggesting your portfolio moves slightly more than the market. Consider rebalancing to reduce sector concentration risk and potentially adding some defensive stocks to hedge against market downturns."
-      );
-      setIsGenerating(false);
-    }, 2000);
+  const { data: sectorBreakdown = [] } = api.analytics.getSectorBreakdown.useQuery();
+  const { data: performers } = api.analytics.getPerformers.useQuery();
+  const { data: riskMetrics } = api.analytics.getRiskMetrics.useQuery();
+  const { data: portfolioHistory = [] } = api.position.getPortfolioHistory.useQuery({
+    days: 30,
+  });
+
+  const generateInsightsMutation = api.analytics.generateAIInsights.useQuery(undefined, {
+    enabled: false,
+  });
+
+  const handleGenerateInsights = async () => {
+    setIsGeneratingAI(true);
+    try {
+      const result = await generateInsightsMutation.refetch();
+      if (result.data) {
+        setAiData(result.data);
+      }
+    } catch (error) {
+      console.error("Failed to generate insights:", error);
+    } finally {
+      setIsGeneratingAI(false);
+    }
   };
 
-  const sectorBreakdown = [
-    { sector: "Technology", value: 65, amount: 32500 },
-    { sector: "Healthcare", value: 20, amount: 10000 },
-    { sector: "Finance", value: 10, amount: 5000 },
-    { sector: "Consumer", value: 5, amount: 2500 },
-  ];
-
-  const topPerformers = [
-    { symbol: "AAPL", return: 12.5, value: 15000 },
-    { symbol: "MSFT", return: 8.3, value: 12000 },
-    { symbol: "GOOGL", return: 6.7, value: 5500 },
-  ];
-
-  const worstPerformers = [
-    { symbol: "TSLA", return: -5.2, value: 8000 },
-    { symbol: "NVDA", return: -3.1, value: 6500 },
-  ];
+  const topPerformers = performers?.topPerformers || [];
+  const worstPerformers = performers?.worstPerformers || [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -56,6 +60,7 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
           </p>
         </div>
 
+        {/* AI Portfolio Insights */}
         <Card className="mb-6">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -68,17 +73,46 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
                   Get AI-powered analysis and recommendations
                 </CardDescription>
               </div>
-              <Button onClick={generateAIInsights} disabled={isGenerating}>
-                {isGenerating ? "Generating..." : "Generate Insights"}
+              <Button onClick={handleGenerateInsights} disabled={isGeneratingAI}>
+                {isGeneratingAI ? "Generating..." : "Generate Insights"}
               </Button>
             </div>
           </CardHeader>
           <CardContent>
-            {aiInsights ? (
-              <div className="rounded-lg border bg-gradient-to-r from-purple-50 to-blue-50 p-6">
-                <p className="text-sm leading-relaxed text-foreground">
-                  {aiInsights}
-                </p>
+            {aiData ? (
+              <div className="space-y-4">
+                <div className="rounded-lg border bg-gradient-to-r from-purple-50 to-blue-50 p-6 dark:from-purple-950 dark:to-blue-950">
+                  <h3 className="mb-3 font-semibold">Portfolio Assessment</h3>
+                  <p className="text-sm leading-relaxed text-foreground">
+                    {aiData.insights}
+                  </p>
+                </div>
+
+                {aiData.recommendations.length > 0 && (
+                  <div className="rounded-lg border bg-green-50 p-6 dark:bg-green-950">
+                    <h3 className="mb-3 font-semibold text-green-900 dark:text-green-100">
+                      Recommendations
+                    </h3>
+                    <ul className="space-y-2 text-sm text-green-900 dark:text-green-100">
+                      {aiData.recommendations.map((rec, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="mt-1">•</span>
+                          <span>{rec}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="rounded-lg border bg-amber-50 p-6 dark:bg-amber-950">
+                  <h3 className="mb-3 flex items-center gap-2 font-semibold text-amber-900 dark:text-amber-100">
+                    <AlertCircle className="h-4 w-4" />
+                    Risk Assessment
+                  </h3>
+                  <p className="text-sm text-amber-900 dark:text-amber-100">
+                    {aiData.riskAssessment}
+                  </p>
+                </div>
               </div>
             ) : (
               <div className="flex h-32 items-center justify-center rounded-lg border-2 border-dashed">
@@ -90,6 +124,7 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
           </CardContent>
         </Card>
 
+        {/* Sector Breakdown & Performance Chart */}
         <div className="mb-6 grid gap-6 md:grid-cols-2">
           <Card>
             <CardHeader>
@@ -100,24 +135,35 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
               <CardDescription>Portfolio allocation by sector</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {sectorBreakdown.map((sector) => (
-                  <div key={sector.sector}>
-                    <div className="mb-2 flex items-center justify-between text-sm">
-                      <span className="font-medium">{sector.sector}</span>
-                      <span className="text-muted-foreground">
-                        {sector.value}% (${sector.amount.toLocaleString()})
-                      </span>
+              {sectorBreakdown.length === 0 ? (
+                <div className="flex h-48 items-center justify-center text-muted-foreground">
+                  No sector data available
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {sectorBreakdown.map((sector) => (
+                    <div key={sector.sector}>
+                      <div className="mb-2 flex items-center justify-between text-sm">
+                        <span className="font-medium capitalize">{sector.sector}</span>
+                        <span className="text-muted-foreground">
+                          {sector.percentage.toFixed(1)}% ($
+                          {sector.value.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                          )
+                        </span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-secondary">
+                        <div
+                          className="h-2 rounded-full bg-blue-600"
+                          style={{ width: `${sector.percentage}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2 w-full rounded-full bg-secondary">
-                      <div
-                        className="h-2 rounded-full bg-blue-600"
-                        style={{ width: `${sector.value}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -130,15 +176,12 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
               <CardDescription>30-day portfolio value</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex h-64 items-center justify-center rounded-lg border-2 border-dashed">
-                <p className="text-muted-foreground">
-                  Chart placeholder - Will integrate with Chart.js
-                </p>
-              </div>
+              <PortfolioChart data={portfolioHistory} />
             </CardContent>
           </Card>
         </div>
 
+        {/* Top and Worst Performers */}
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
             <CardHeader>
@@ -149,28 +192,48 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
               <CardDescription>Best performing stocks</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Symbol</TableHead>
-                    <TableHead>Value</TableHead>
-                    <TableHead>Return</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {topPerformers.map((stock) => (
-                    <TableRow key={stock.symbol}>
-                      <TableCell className="font-medium">{stock.symbol}</TableCell>
-                      <TableCell>${stock.value.toLocaleString()}</TableCell>
-                      <TableCell>
-                        <Badge variant="default" className="bg-green-600">
-                          +{stock.return}%
-                        </Badge>
-                      </TableCell>
+              {topPerformers.length === 0 ? (
+                <div className="flex h-32 items-center justify-center text-muted-foreground">
+                  No positions yet
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Symbol</TableHead>
+                      <TableHead>Value</TableHead>
+                      <TableHead>Return</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {topPerformers.map((stock) => (
+                      <TableRow key={stock.symbol}>
+                        <TableCell className="font-medium">{stock.symbol}</TableCell>
+                        <TableCell>
+                          $
+                          {stock.value.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={stock.returnPercent >= 0 ? "default" : "destructive"}
+                            className={
+                              stock.returnPercent >= 0
+                                ? "bg-green-600"
+                                : "bg-red-600"
+                            }
+                          >
+                            {stock.returnPercent >= 0 ? "+" : ""}
+                            {stock.returnPercent.toFixed(2)}%
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
 
@@ -183,56 +246,107 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
               <CardDescription>Stocks needing attention</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Symbol</TableHead>
-                    <TableHead>Value</TableHead>
-                    <TableHead>Return</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {worstPerformers.map((stock) => (
-                    <TableRow key={stock.symbol}>
-                      <TableCell className="font-medium">{stock.symbol}</TableCell>
-                      <TableCell>${stock.value.toLocaleString()}</TableCell>
-                      <TableCell>
-                        <Badge variant="destructive">
-                          {stock.return}%
-                        </Badge>
-                      </TableCell>
+              {worstPerformers.length === 0 ? (
+                <div className="flex h-32 items-center justify-center text-muted-foreground">
+                  No positions yet
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Symbol</TableHead>
+                      <TableHead>Value</TableHead>
+                      <TableHead>Return</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {worstPerformers.map((stock) => (
+                      <TableRow key={stock.symbol}>
+                        <TableCell className="font-medium">{stock.symbol}</TableCell>
+                        <TableCell>
+                          $
+                          {stock.value.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={stock.returnPercent >= 0 ? "default" : "destructive"}
+                            className={
+                              stock.returnPercent >= 0
+                                ? "bg-green-600"
+                                : "bg-red-600"
+                            }
+                          >
+                            {stock.returnPercent >= 0 ? "+" : ""}
+                            {stock.returnPercent.toFixed(2)}%
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </div>
 
+        {/* Risk Metrics */}
         <Card className="mt-6">
           <CardHeader>
             <CardTitle>Risk Metrics</CardTitle>
             <CardDescription>Portfolio risk analysis</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-6 md:grid-cols-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Portfolio Beta</p>
-                <p className="text-2xl font-bold">1.2</p>
+            {!riskMetrics ? (
+              <div className="flex h-24 items-center justify-center text-muted-foreground">
+                No risk data available
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Sharpe Ratio</p>
-                <p className="text-2xl font-bold">1.8</p>
+            ) : (
+              <div className="grid gap-6 md:grid-cols-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Portfolio Beta</p>
+                  <p className="text-2xl font-bold">{riskMetrics.beta.toFixed(2)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {riskMetrics.beta > 1
+                      ? "More volatile than market"
+                      : riskMetrics.beta < 1
+                        ? "Less volatile than market"
+                        : "Tracks market"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Sharpe Ratio</p>
+                  <p className="text-2xl font-bold">{riskMetrics.sharpeRatio.toFixed(2)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {riskMetrics.sharpeRatio > 1
+                      ? "Good risk-adjusted return"
+                      : "Room for improvement"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Volatility</p>
+                  <p className="text-2xl font-bold">{riskMetrics.volatility.toFixed(1)}%</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {riskMetrics.volatility > 25
+                      ? "High volatility"
+                      : riskMetrics.volatility > 15
+                        ? "Moderate volatility"
+                        : "Low volatility"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Max Drawdown</p>
+                  <p className="text-2xl font-bold text-red-600">
+                    -{riskMetrics.maxDrawdown.toFixed(1)}%
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Largest portfolio decline
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Volatility</p>
-                <p className="text-2xl font-bold">18.5%</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Max Drawdown</p>
-                <p className="text-2xl font-bold text-red-600">-12.3%</p>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>

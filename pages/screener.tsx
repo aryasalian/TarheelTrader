@@ -10,12 +10,17 @@ import { Slider } from "@/components/ui/slider";
 import { Star, Filter, TrendingUp } from "lucide-react";
 import { Navigation } from "@/components/navigation";
 import { usePriceStore } from "@/store/priceStore";
+import { STOCK_UNIVERSE, MAX_STOCK_PRICE, type StockMeta } from "@/data/stocks";
+import { usePriceSync } from "@/hooks/usePriceSync";
 
 type WatchlistEntry = RouterOutputs["watchlist"]["getWatchlist"][number];
 
 type ScreenerStock = RouterOutputs["market"]["getScreenerStocks"][number];
-type StockRowData = ScreenerStock & {
+type StockRowData = StockMeta & {
+  price: number;
+  changePercent: number;
   isFavorite: boolean;
+  isEstimate: boolean;
 };
 
 function WatchlistItemRow({
@@ -66,73 +71,6 @@ function WatchlistItemRow({
         {reference ? (
           <span className={changePercent >= 0 ? "text-green-600" : "text-red-600"}>
             {changePercent >= 0 ? "+" : ""}{changePercent.toFixed(2)}%
-          </span>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
-      </TableCell>
-      <TableCell>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onRemove(item.id)}
-          className="text-yellow-500 hover:text-yellow-600"
-        >
-          <Star className="h-5 w-5 fill-yellow-500" />
-        </Button>
-      </TableCell>
-    </TableRow>
-  );
-}
-function WatchlistItemRow({
-  item,
-  onRemove,
-  reference,
-}: {
-  item: WatchlistEntry;
-  onRemove: (id: string) => void;
-  reference?: ScreenerStock;
-}) {
-  const updatePrice = usePriceStore((state) => state.updatePrice);
-  const priceRecord = usePriceStore((state) => state.prices[item.symbol] ?? null);
-
-  const { data: fallbackPrice } = api.position.getStockPrice.useQuery(
-    { symbol: item.symbol },
-    {
-      enabled: !reference && !priceRecord,
-      refetchInterval: 30000,
-      staleTime: 20000,
-    },
-  );
-
-  useEffect(() => {
-    if (!reference && fallbackPrice?.price) {
-      updatePrice(item.symbol, fallbackPrice.price, fallbackPrice.success);
-    }
-  }, [reference, fallbackPrice, item.symbol, updatePrice]);
-
-  const currentPrice = reference?.price ?? priceRecord?.price ?? fallbackPrice?.price ?? 0;
-  const isEstimate = reference
-    ? reference.isEstimate
-    : priceRecord
-      ? !priceRecord.success
-      : !(fallbackPrice?.success ?? false);
-  const changePercent = reference?.changePercent ?? 0;
-
-  return (
-    <TableRow>
-      <TableCell className="font-medium">{item.symbol}</TableCell>
-      <TableCell>
-        {currentPrice > 0 ? `$${currentPrice.toFixed(2)}` : "—"}
-        {isEstimate && currentPrice > 0 && (
-          <span className="ml-1 text-xs text-muted-foreground">(est)</span>
-        )}
-      </TableCell>
-      <TableCell>
-        {reference ? (
-          <span className={changePercent >= 0 ? "text-green-600" : "text-red-600"}>
-            {changePercent >= 0 ? "+" : ""}
-            {changePercent.toFixed(2)}%
           </span>
         ) : (
           <span className="text-muted-foreground">—</span>
