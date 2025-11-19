@@ -35,10 +35,10 @@ export async function getLatestPrice(symbol: string): Promise<number> {
       message: `Symbol '${ticker}' has a shallow order-book. No quotes could be found.`,
     });
   } catch (e: unknown) {
-    const err = e as { statusCode?: number };
+    const msg = String(e);
 
-    // Alpaca throws 404 for invalid symbols → ticker not found
-    if (err.statusCode === 404) {
+    // Alpaca invalid ticker cases
+    if (msg.includes("no trade found") || msg.includes("code: 404")) {
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: `Symbol '${ticker}' not found on Alpaca`,

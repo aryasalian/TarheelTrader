@@ -67,6 +67,7 @@ function PositionRow({ row }: { row: EnrichedPositionRow }) {
 }
 
 export default function PortfolioPage() {
+  const utils = api.useUtils();
   const { data: positions = [] } = api.position.getPositions.useQuery();
   const symbols = positions.map((p) => p.symbol);
   // Sync prices globally using Zustand + tRPC
@@ -77,13 +78,24 @@ export default function PortfolioPage() {
 
   // Now all other hooks/data points have fresh PriceStore to work with
   const pf_stats = usePortfolioStats(positions);
-  const { data: transactions, refetch: refetchTransactions } = api.transaction.getTransactions.useQuery();
+  const { data: transactions } = api.transaction.getTransactions.useQuery();
   const { data: stats } = api.transaction.getTransactionStats.useQuery();
   const createTransaction = api.transaction.createTransaction.useMutation({
     onError(error) {
-      toast.error(error.message ?? "Trade failed");
+      if (error.data?.code === "INTERNAL_SERVER_ERROR") {
+        toast.error("Server error. Try again in a moment.");
+      } else {
+        toast.error(error.message);
+      }
     },
     onSuccess() {
+      setSymbol("");
+      setQuantity("");
+      setAction("buy");
+      setIsDialogOpen(false);
+      utils.transaction.getTransactions.invalidate();
+      utils.transaction.getTransactionStats.invalidate();
+      utils.position.getPositions.invalidate();
       toast.success("Trade recorded");
     },
   });
@@ -96,23 +108,20 @@ export default function PortfolioPage() {
   const dailyChange = 1234.56; // Mock for now
   const dailyChangePercent = 2.45; // Mock for now
 
-  const handleNewTrade = async () => {
-    if (symbol.trim() && quantity) {
-      try {
-        await createTransaction.mutateAsync({
-          symbol: symbol.toUpperCase(),
-          quantity: parseFloat(quantity),
-          action: action,
-        });
-        setSymbol("");
-        setQuantity("");
-        setAction("buy");
-        setIsDialogOpen(false);
-        void refetchTransactions();
-      } catch(err) {
-        console.error("Trade failed:", err);
-      }
+  const handleNewTrade = () => {
+    if (!symbol.trim()) {
+      toast.error("Enter a symbol");
+      return;
     }
+    if (!quantity || isNaN(parseFloat(quantity))) {
+      toast.error("Enter a valid quantity");
+      return;
+    }
+    createTransaction.mutate({
+      symbol: symbol.toUpperCase(),
+      quantity: parseFloat(quantity),
+      action,
+    });
   };
 
   return (
