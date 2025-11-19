@@ -77,9 +77,9 @@ export default function PortfolioPage() {
   });
 
   // Now all other hooks/data points have fresh PriceStore to work with
-  const pf_stats = usePortfolioStats(positions);
   const { data: transactions } = api.transaction.getTransactions.useQuery();
   const { data: stats } = api.transaction.getTransactionStats.useQuery();
+  const pf_stats = usePortfolioStats(positions, stats);
   const createTransaction = api.transaction.createTransaction.useMutation({
     onError(error) {
       if (error.data?.code === "INTERNAL_SERVER_ERROR") {
