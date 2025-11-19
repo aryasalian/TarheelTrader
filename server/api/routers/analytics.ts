@@ -58,43 +58,6 @@ const getSectorBreakdown = protectedProcedure.query(async ({ ctx }) => {
     .sort((a, b) => b.value - a.value);
 });
 
-// Top and worst performers
-const getPerformers = protectedProcedure.query(async ({ ctx }) => {
-  const { subject } = ctx;
-
-  const positions = await db.query.position.findMany({
-    where: eq(position.userId, subject.id),
-  });
-
-  if (positions.length === 0) {
-    return { topPerformers: [], worstPerformers: [] };
-  }
-
-  const symbols = positions.map((p) => p.symbol);
-  const priceMap = await getMultiplePrices(symbols);
-
-  const performers = positions.map((pos) => {
-    const currentPrice = priceMap[pos.symbol] ?? parseFloat(pos.avgCost);
-    const value = parseFloat(pos.quantity) * currentPrice;
-    const costBasis = parseFloat(pos.quantity) * parseFloat(pos.avgCost);
-    const returnPercent = costBasis > 0 ? ((value - costBasis) / costBasis) * 100 : 0;
-
-    return {
-      symbol: pos.symbol,
-      value,
-      returnPercent,
-      pnl: value - costBasis,
-    };
-  });
-
-  performers.sort((a, b) => b.returnPercent - a.returnPercent);
-
-  return {
-    topPerformers: performers.slice(0, 5),
-    worstPerformers: performers.slice(-5).reverse(),
-  };
-});
-
 // Risk metrics
 const getRiskMetrics = protectedProcedure.query(async ({ ctx }) => {
   const { subject } = ctx;
@@ -133,7 +96,12 @@ const getRiskMetrics = protectedProcedure.query(async ({ ctx }) => {
     totalValue += value;
 
     // Map volatility to numeric values
-    const volValue = stockMeta?.volatility === "high" ? 30 : stockMeta?.volatility === "medium" ? 20 : 10;
+    const volValue =
+      stockMeta?.volatility === "high"
+        ? 30
+        : stockMeta?.volatility === "medium"
+          ? 20
+          : 10;
     avgVolatility += (value / (totalValue || 1)) * volValue;
   }
 
@@ -155,7 +123,11 @@ const getRiskMetrics = protectedProcedure.query(async ({ ctx }) => {
             ? 0.9
             : 1.0;
     const volMultiplier =
-      stockMeta?.volatility === "high" ? 1.2 : stockMeta?.volatility === "low" ? 0.8 : 1.0;
+      stockMeta?.volatility === "high"
+        ? 1.2
+        : stockMeta?.volatility === "low"
+          ? 0.8
+          : 1.0;
 
     beta += weight * sectorBeta * volMultiplier;
   }
@@ -165,10 +137,14 @@ const getRiskMetrics = protectedProcedure.query(async ({ ctx }) => {
     (sum, pos) => sum + parseFloat(pos.quantity) * parseFloat(pos.avgCost),
     0,
   );
-  const totalReturn = totalValue > 0 && totalCostBasis > 0 ? (totalValue - totalCostBasis) / totalCostBasis : 0;
+  const totalReturn =
+    totalValue > 0 && totalCostBasis > 0
+      ? (totalValue - totalCostBasis) / totalCostBasis
+      : 0;
 
   // Sharpe ratio (simplified: return / volatility)
-  const sharpeRatio = avgVolatility > 0 ? (totalReturn * 100) / (avgVolatility / 100) : 0;
+  const sharpeRatio =
+    avgVolatility > 0 ? (totalReturn * 100) / (avgVolatility / 100) : 0;
 
   // Calculate max drawdown from transaction history
   let maxDrawdown = 0;
@@ -183,12 +159,18 @@ const getRiskMetrics = protectedProcedure.query(async ({ ctx }) => {
 
     if (txn.action === "buy") {
       const newQty = existing.quantity + qty;
-      const newAvg = newQty > 0 ? (existing.quantity * existing.avgCost + qty * price) / newQty : price;
+      const newAvg =
+        newQty > 0
+          ? (existing.quantity * existing.avgCost + qty * price) / newQty
+          : price;
       positionsMap.set(symbol, { quantity: newQty, avgCost: newAvg });
     } else {
       const newQty = existing.quantity - qty;
       if (newQty > 0) {
-        positionsMap.set(symbol, { quantity: newQty, avgCost: existing.avgCost });
+        positionsMap.set(symbol, {
+          quantity: newQty,
+          avgCost: existing.avgCost,
+        });
       } else {
         positionsMap.delete(symbol);
       }
@@ -232,7 +214,8 @@ const generateAIInsights = protectedProcedure.query(async ({ ctx }) => {
 
   if (positions.length === 0) {
     return {
-      insights: "No portfolio data available. Start by recording some transactions to get AI-powered insights!",
+      insights:
+        "No portfolio data available. Start by recording some transactions to get AI-powered insights!",
       recommendations: [],
       riskAssessment: "Unable to assess risk without portfolio data.",
       generated: new Date().toISOString(),
@@ -262,11 +245,15 @@ const generateAIInsights = protectedProcedure.query(async ({ ctx }) => {
       avgCost: parseFloat(pos.avgCost),
       currentPrice,
       value,
-      returnPercent: costBasis > 0 ? ((value - costBasis) / costBasis) * 100 : 0,
+      returnPercent:
+        costBasis > 0 ? ((value - costBasis) / costBasis) * 100 : 0,
     };
   });
 
-  const totalReturn = totalCostBasis > 0 ? ((totalValue - totalCostBasis) / totalCostBasis) * 100 : 0;
+  const totalReturn =
+    totalCostBasis > 0
+      ? ((totalValue - totalCostBasis) / totalCostBasis) * 100
+      : 0;
 
   // Calculate sector breakdown
   const sectorMap = new Map<string, number>();
@@ -275,10 +262,12 @@ const generateAIInsights = protectedProcedure.query(async ({ ctx }) => {
     sectorMap.set(pos.sector, existing + pos.value);
   }
 
-  const sectorBreakdown = Array.from(sectorMap.entries()).map(([sector, value]) => ({
-    sector,
-    percentage: totalValue > 0 ? (value / totalValue) * 100 : 0,
-  }));
+  const sectorBreakdown = Array.from(sectorMap.entries()).map(
+    ([sector, value]) => ({
+      sector,
+      percentage: totalValue > 0 ? (value / totalValue) * 100 : 0,
+    }),
+  );
 
   // Recent transactions
   const recentTxns = transactions.slice(0, 10).map((txn) => ({
@@ -354,7 +343,7 @@ Format your response as JSON with this structure:
     };
   } catch (error) {
     console.error("OpenAI API error:", error);
-    
+
     // Fallback insights
     return {
       insights: `Your portfolio consists of ${positions.length} positions with a total value of $${totalValue.toFixed(2)}. Overall return is ${totalReturn.toFixed(2)}%. The portfolio shows ${sectorBreakdown.length > 3 ? "good" : "limited"} sector diversification.`,
@@ -371,7 +360,6 @@ Format your response as JSON with this structure:
 
 export const analyticsApiRouter = createTRPCRouter({
   getSectorBreakdown,
-  getPerformers,
   getRiskMetrics,
   generateAIInsights,
 });

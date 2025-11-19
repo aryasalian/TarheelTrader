@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Navigation } from "@/components/navigation";
 import { PortfolioChart } from "@/components/PortfolioChart";
 import { Sparkles, TrendingUp, TrendingDown, PieChart, BarChart3, AlertCircle } from "lucide-react";
+import { usePortfolioStats } from "@/hooks/usePortfolioStats";
 
 type AnalyticsPageProps = { user: Subject };
 
@@ -22,7 +23,12 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
   } | null>(null);
 
   const { data: sectorBreakdown = [] } = api.analytics.getSectorBreakdown.useQuery();
-  const { data: performers } = api.analytics.getPerformers.useQuery();
+  const { data: stats } = api.transaction.getTransactionStats.useQuery();
+  const { data: positions = [] } = api.position.getPositions.useQuery();
+  const pf_stats = usePortfolioStats(positions, {
+    totalRealizedPnl: stats?.totalRealizedPnl ?? 0,
+  });
+  
   const { data: riskMetrics } = api.analytics.getRiskMetrics.useQuery();
   const { data: portfolioHistory = [] } = api.position.getPortfolioHistory.useQuery({
     days: 30,
@@ -46,8 +52,8 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
     }
   };
 
-  const topPerformers = performers?.topPerformers || [];
-  const worstPerformers = performers?.worstPerformers || [];
+  const topPerformers = pf_stats.bestPerformers;
+  const worstPerformers = pf_stats.worstPerformers;
 
   return (
     <div className="min-h-screen bg-background">
@@ -117,7 +123,7 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
             ) : (
               <div className="flex h-32 items-center justify-center rounded-lg border-2 border-dashed">
                 <p className="text-muted-foreground">
-                  Click "Generate Insights" to get AI analysis of your portfolio
+                  Click &quot;Generate Insights&quot; to get AI analysis of your portfolio
                 </p>
               </div>
             )}
@@ -211,22 +217,22 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
                         <TableCell className="font-medium">{stock.symbol}</TableCell>
                         <TableCell>
                           $
-                          {stock.value.toLocaleString(undefined, {
+                          {stock.currentPrice.toLocaleString(undefined, {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}
                         </TableCell>
                         <TableCell>
                           <Badge
-                            variant={stock.returnPercent >= 0 ? "default" : "destructive"}
+                            variant={stock.pnlPercent >= 0 ? "default" : "destructive"}
                             className={
-                              stock.returnPercent >= 0
+                              stock.pnlPercent >= 0
                                 ? "bg-green-600"
                                 : "bg-red-600"
                             }
                           >
-                            {stock.returnPercent >= 0 ? "+" : ""}
-                            {stock.returnPercent.toFixed(2)}%
+                            {stock.pnlPercent >= 0 ? "+" : ""}
+                            {stock.pnlPercent.toFixed(2)}%
                           </Badge>
                         </TableCell>
                       </TableRow>
@@ -265,22 +271,22 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
                         <TableCell className="font-medium">{stock.symbol}</TableCell>
                         <TableCell>
                           $
-                          {stock.value.toLocaleString(undefined, {
+                          {stock.currentPrice.toLocaleString(undefined, {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}
                         </TableCell>
                         <TableCell>
                           <Badge
-                            variant={stock.returnPercent >= 0 ? "default" : "destructive"}
+                            variant={stock.pnlPercent >= 0 ? "default" : "destructive"}
                             className={
-                              stock.returnPercent >= 0
+                              stock.pnlPercent >= 0
                                 ? "bg-green-600"
                                 : "bg-red-600"
                             }
                           >
-                            {stock.returnPercent >= 0 ? "+" : ""}
-                            {stock.returnPercent.toFixed(2)}%
+                            {stock.pnlPercent >= 0 ? "+" : ""}
+                            {stock.pnlPercent.toFixed(2)}%
                           </Badge>
                         </TableCell>
                       </TableRow>

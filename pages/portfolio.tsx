@@ -256,18 +256,18 @@ export default function PortfolioPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-sm font-medium">Best Performer</CardTitle>
-              {pf_stats.best && (
-                <Badge variant="default">{pf_stats.best.symbol}</Badge>
+              {pf_stats.bestPerformers[0] && (
+                <Badge variant="default">{pf_stats.bestPerformers[0].symbol}</Badge>
               )}
             </CardHeader>
             <CardContent>
-              {pf_stats.best ? (
+              {pf_stats.bestPerformers[0] ? (
                 <>
                   <div className="text-xl font-bold text-green-600">
-                    {pf_stats.best.pnlPercent.toFixed(2)}%
+                    {pf_stats.bestPerformers[0].pnlPercent.toFixed(2)}%
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    +${pf_stats.best.pnl.toFixed(2)}
+                    +${pf_stats.bestPerformers[0].pnl.toFixed(2)}
                   </p>
                 </>
               ) : (
@@ -280,19 +280,19 @@ export default function PortfolioPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-sm font-medium">Worst Performer</CardTitle>
-              {pf_stats.worst && (
-                <Badge variant="destructive">{pf_stats.worst.symbol}</Badge>
+              {pf_stats.worstPerformers[0] && (
+                <Badge variant="destructive">{pf_stats.worstPerformers[0].symbol}</Badge>
               )}
             </CardHeader>
             <CardContent>
-              {pf_stats.worst ? (
+              {pf_stats.worstPerformers[0] ? (
                 <>
                   <div className="text-xl font-bold text-red-600">
-                    {pf_stats.worst.pnlPercent.toFixed(2)}%
+                    {pf_stats.worstPerformers[0].pnlPercent.toFixed(2)}%
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {pf_stats.worst.pnl >= 0 ? "+" : "-"}$
-                    {Math.abs(pf_stats.worst.pnl).toFixed(2)}
+                    {pf_stats.worstPerformers[0].pnl >= 0 ? "+" : "-"}$
+                    {Math.abs(pf_stats.worstPerformers[0].pnl).toFixed(2)}
                   </p>
                 </>
               ) : (

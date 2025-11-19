@@ -51,13 +51,16 @@ export function usePortfolioStats(
 
   const nav = totalMarketValue + realized;
 
-  // Best/Worst performer
-  let best: (typeof enriched)[number] | null = null;
-  let worst: (typeof enriched)[number] | null = null;
-  for (const pos of enriched) {
-    if (!best || pos.pnlPercent > best.pnlPercent) best = pos;
-    if (!worst || pos.pnlPercent < worst.pnlPercent) worst = pos;
-  }
+  // Best/Worst performers
+  const bestPerformers = enriched
+    .filter((p) => p.pnlPercent >= 0) // only positive
+    .sort((a, b) => b.pnlPercent - a.pnlPercent)
+    .slice(0, 5);
+
+  const worstPerformers = enriched
+    .filter((p) => p.pnlPercent <= 0) // only negative
+    .sort((a, b) => a.pnlPercent - b.pnlPercent)
+    .slice(0, 5);
 
   return {
     // Core portfolio metrics
@@ -74,7 +77,7 @@ export function usePortfolioStats(
     count: positions.length,
 
     // Top/bottom performers
-    best,
-    worst,
+    bestPerformers,
+    worstPerformers,
   };
 }
