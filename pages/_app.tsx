@@ -8,6 +8,7 @@
  */
 
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { Toaster } from "sonner";
 import "@/styles/globals.css";
 import type { AppProps } from "next/app";
 import { api } from "@/utils/trpc/api";
@@ -21,6 +22,7 @@ function App({ Component, pageProps }: AppProps) {
       disableTransitionOnChange
     >
       <Component {...pageProps} />
+      <Toaster richColors closeButton />
     </ThemeProvider>
   );
 }

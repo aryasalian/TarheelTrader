@@ -14,6 +14,7 @@ import { Navigation } from "@/components/navigation";
 import { TrendingUp, TrendingDown, DollarSign, Activity, Plus } from "lucide-react";
 import { usePortfolioStats } from "@/hooks/usePortfolioStats";
 import { usePriceSync } from "@/hooks/usePriceSync";
+import { toast } from "sonner";
 
 export interface EnrichedPositionRow {
   symbol: string;
@@ -78,34 +79,38 @@ export default function PortfolioPage() {
   const pf_stats = usePortfolioStats(positions);
   const { data: transactions, refetch: refetchTransactions } = api.transaction.getTransactions.useQuery();
   const { data: stats } = api.transaction.getTransactionStats.useQuery();
-  const createTransaction = api.transaction.createTransaction.useMutation();
+  const createTransaction = api.transaction.createTransaction.useMutation({
+    onError(error) {
+      toast.error(error.message ?? "Trade failed");
+    },
+    onSuccess() {
+      toast.success("Trade recorded");
+    },
+  });
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [symbol, setSymbol] = useState("");
   const [quantity, setQuantity] = useState("");
-  const [price, setPrice] = useState("");
   const [action, setAction] = useState<"buy" | "sell">("buy");
 
   const dailyChange = 1234.56; // Mock for now
   const dailyChangePercent = 2.45; // Mock for now
 
   const handleNewTrade = async () => {
-    if (symbol.trim() && quantity && price) {
+    if (symbol.trim() && quantity) {
       try {
         await createTransaction.mutateAsync({
           symbol: symbol.toUpperCase(),
           quantity: parseFloat(quantity),
-          price: parseFloat(price),
           action: action,
         });
         setSymbol("");
         setQuantity("");
-        setPrice("");
         setAction("buy");
         setIsDialogOpen(false);
         void refetchTransactions();
-      } catch {
-        window.alert("Failed to create transaction");
+      } catch(err) {
+        console.error("Trade failed:", err);
       }
     }
   };
@@ -164,17 +169,6 @@ export default function PortfolioPage() {
                       placeholder="10"
                       value={quantity}
                       onChange={(e) => setQuantity(e.target.value)}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="price">Price</Label>
-                    <Input
-                      id="price"
-                      type="number"
-                      step="0.01"
-                      placeholder="150.00"
-                      value={price}
-                      onChange={(e) => setPrice(e.target.value)}
                     />
                   </div>
                 </div>

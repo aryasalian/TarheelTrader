@@ -17,7 +17,6 @@ export const DraftProfileImage = z.object({ avatarUrl: z.string().nullish() });
 export const NewTransaction = z.object({
   symbol: z.string(),
   quantity: z.number(),
-  price: z.number(),
   action: z.enum(["buy", "sell"]),
 });
 
