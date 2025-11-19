@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { LogOut, Home, Filter, PieChart, BarChart3 } from "lucide-react";
 import { createSupabaseComponentClient } from "@/utils/supabase/clients/component";
 import { api } from "@/utils/trpc/api";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 export function Navigation() {
   const router = useRouter();
@@ -19,7 +20,7 @@ export function Navigation() {
   const isActive = (path: string) => router.pathname === path;
 
   return (
-    <nav className="border-b bg-white">
+    <nav className="border-b bg-background">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-8">
@@ -70,10 +71,13 @@ export function Navigation() {
             </div>
           </div>
 
-          <Button variant="ghost" onClick={handleLogout} className="gap-2">
-            <LogOut className="h-4 w-4" />
-            Log Out
-          </Button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button variant="ghost" onClick={handleLogout} className="gap-2">
+              <LogOut className="h-4 w-4" />
+              Log Out
+            </Button>
+          </div>
         </div>
       </div>
     </nav>
