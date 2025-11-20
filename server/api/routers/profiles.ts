@@ -67,9 +67,16 @@ const handleNewUser = protectedProcedure
   .mutation(async ({ ctx, input }) => {
     const { subject } = ctx;
     const { username } = input;
+    console.log(username);
     await db
       .insert(profiles)
-      .values({ id: subject.id, username: username, createdAt: new Date() });
+      .values({ id: subject.id, username: username })
+      .onConflictDoUpdate({
+        target: profiles.id,
+        set: {
+          username: username,
+        },
+      });
   });
 
 /**
