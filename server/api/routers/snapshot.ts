@@ -73,7 +73,8 @@ async function computeNavAtHour(userId: string, ts: Date) {
 }
 
 /* SNAPSHOT PROCEDURE */
-
+// This function creates a snapshot for all past hours since the last snapshot was made
+// This triggers as soon as the user logs in
 const takeHourlySnapshots = protectedProcedure.mutation(async ({ ctx }) => {
   const { subject } = ctx;
   const now = new Date();
@@ -87,27 +88,27 @@ const takeHourlySnapshots = protectedProcedure.mutation(async ({ ctx }) => {
     .orderBy(desc(hourlyPortfolioSnapshot.timestamp))
     .limit(1);
 
-  // no snapshots exist yet
+  // 1. No snapshots exist yet
   let cursor = latest ? floorToHour(latest.timestamp) : null;
-
   if (!cursor) {
-    // create only current hour
-    const nav = await computeNavAtHour(subject.id, nowHour);
+    const nav = await computeNavAtHour(subject.id, nowHour); // create only current hour
     await insertSnapshot(subject.id, nowHour, nav);
     return { created: 1 };
   }
 
-  // already up to date
+  // 2. Already up to date
   if (cursor.getTime() >= nowHour.getTime()) {
     return { created: 0 };
   }
 
-  // generate every missing hour
+  // 3. Snapshots missing so generate every missing hour
   let created = 0;
   while (true) {
-    cursor = addHours(cursor, 1);
-    if (cursor.getTime() > nowHour.getTime()) break;
-
+    cursor = addHours(cursor, 1); // incrementer
+    // loop break condition
+    if (cursor.getTime() > nowHour.getTime()) {
+      break;
+    }
     const nav = await computeNavAtHour(subject.id, cursor);
     await insertSnapshot(subject.id, cursor, nav);
     created++;
