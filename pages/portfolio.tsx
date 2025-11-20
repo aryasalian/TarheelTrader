@@ -16,6 +16,8 @@ import { TrendingUp, TrendingDown, DollarSign, Activity, Plus } from "lucide-rea
 import { usePortfolioStats } from "@/hooks/usePortfolioStats";
 import { usePriceSync } from "@/hooks/usePriceSync";
 import { toast } from "sonner";
+import { createCaller } from "@/server/api/root";
+import { useSnapshotSync } from "@/hooks/useSnapshot";
 
 export interface EnrichedPositionRow {
   symbol: string;
@@ -73,6 +75,7 @@ export default function PortfolioPage() {
   const { data: portfolioHistory = [] } = api.position.getPortfolioHistory.useQuery({
     days: 30,
   });
+  useSnapshotSync();
   const symbols = positions.map((p) => p.symbol);
   // Sync prices globally using Zustand + tRPC
   usePriceSync(symbols, {
@@ -477,6 +480,18 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
       },
     };
   }
+  
+  // Build a tRPC context manually for server-side tRPC caller
+  const trpcCtx = {
+    subject: {
+      id: userData.claims.sub,
+      email: userData.claims.email ?? null,
+      role: "authenticated",
+    },
+  };
+
+  const caller = createCaller(trpcCtx);
+  await caller.snapshot.takeHourlySnapshots();
 
   return {
     props: {

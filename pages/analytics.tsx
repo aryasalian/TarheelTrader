@@ -11,6 +11,8 @@ import { Navigation } from "@/components/navigation";
 import { PortfolioChart } from "@/components/PortfolioChart";
 import { Sparkles, TrendingUp, TrendingDown, PieChart, BarChart3, AlertCircle } from "lucide-react";
 import { usePortfolioStats } from "@/hooks/usePortfolioStats";
+import { createCaller } from "@/server/api/root";
+import { useSnapshotSync } from "@/hooks/useSnapshot";
 
 type AnalyticsPageProps = { user: Subject };
 
@@ -28,6 +30,8 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
   const pf_stats = usePortfolioStats(positions, {
     totalRealizedPnl: stats?.totalRealizedPnl ?? 0,
   });
+  
+  useSnapshotSync();
   
   const { data: riskMetrics } = api.analytics.getRiskMetrics.useQuery();
   const { data: portfolioHistory = [] } = api.position.getPortfolioHistory.useQuery({
@@ -372,6 +376,18 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
       },
     };
   }
+
+  // Build a tRPC context manually for server-side tRPC caller
+  const trpcCtx = {
+    subject: {
+      id: userData.claims.sub,
+      email: userData.claims.email ?? null,
+      role: "authenticated",
+    },
+  };
+
+  const caller = createCaller(trpcCtx);
+  await caller.snapshot.takeHourlySnapshots();
 
   return {
     props: {
