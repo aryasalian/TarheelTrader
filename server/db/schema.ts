@@ -19,6 +19,7 @@ import {
   numeric,
   timestamp,
   boolean,
+  unique,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -33,7 +34,7 @@ export const notificationTypeEnum = pgEnum("notification_type_enum", [
 // profiles
 export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey(),
-  username: text("username").notNull().unique(),
+  username: text("username").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   avatarUrl: text("avatar_url"), // nullable
 });
@@ -65,14 +66,22 @@ export const transaction = pgTable("transaction", {
 });
 
 // hourly_portfolio_snapshot
-export const hourlyPortfolioSnapshot = pgTable("hourly_portfolio_snapshot", {
-  id: uuid("id").primaryKey(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => profiles.id),
-  eohValue: numeric("eoh_value").notNull(),
-  timestamp: timestamp("timestamp").notNull(),
-});
+export const hourlyPortfolioSnapshot = pgTable(
+  "hourly_portfolio_snapshot",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id),
+    eohValue: numeric("eoh_value").notNull(),
+    timestamp: timestamp("timestamp").notNull(),
+  },
+  (table) => {
+    return {
+      uniqueUserHour: unique().on(table.userId, table.timestamp),
+    };
+  },
+);
 
 // watchlist_items
 export const watchlistItems = pgTable("watchlist_items", {

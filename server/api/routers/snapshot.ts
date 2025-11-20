@@ -29,9 +29,12 @@ function addHours(date: Date, hrs: number): Date {
 async function getPriceAtHour(symbol: string, ts: Date) {
   const now = new Date();
   const FIFTEEN_MIN = 15 * 60 * 1000;
+  const ONE_MIN = 60 * 1000;
 
   // HARD BLOCK if ts is too recent
-  if (ts.getTime() + FIFTEEN_MIN > now.getTime()) {
+  // 15 MIN for SIP Alpaca rule; 1 MIN to ensure (end + 15min) > now;
+  // 1 MIN more to ensure seconds don't cause issues
+  if (ts.getTime() + FIFTEEN_MIN + ONE_MIN + ONE_MIN > now.getTime()) {
     return null;
   }
 
@@ -39,7 +42,7 @@ async function getPriceAtHour(symbol: string, ts: Date) {
     symbol,
     {
       start: ts.toISOString(),
-      end: new Date(ts.getTime() + 2 * 60 * 1000).toISOString(), // only 2-minute window
+      end: new Date(ts.getTime() + ONE_MIN).toISOString(), // only 1-minute window
       timeframe: "1Min",
     },
     alpaca.configuration,
@@ -55,12 +58,21 @@ async function getPriceAtHour(symbol: string, ts: Date) {
 }
 
 async function insertSnapshot(userId: string, ts: Date, nav: number) {
-  await db.insert(hourlyPortfolioSnapshot).values({
-    id: randomUUID(),
-    userId,
-    eohValue: nav.toString(),
-    timestamp: ts,
-  });
+  await db
+    .insert(hourlyPortfolioSnapshot)
+    .values({
+      id: randomUUID(),
+      userId,
+      eohValue: nav.toString(),
+      timestamp: ts,
+    })
+    .onConflictDoUpdate({
+      target: [
+        hourlyPortfolioSnapshot.userId,
+        hourlyPortfolioSnapshot.timestamp,
+      ],
+      set: { eohValue: nav.toString() },
+    });
 }
 
 async function computeNavAtHour(userId: string, ts: Date) {
@@ -104,19 +116,30 @@ const takeHourlySnapshots = protectedProcedure.mutation(async ({ ctx }) => {
     return { created: 1 };
   }
 
+  const FIFTEEN_MIN = 15 * 60 * 1000;
+  const ONE_MIN = 60 * 1000;
+
   // 2. Already up to date
-  if (cursor.getTime() >= nowHour.getTime()) {
+  if (cursor.getTime() + FIFTEEN_MIN >= now.getTime()) {
+    console.log(
+      "FETCHING SNAPSHOT:",
+      "cursor =",
+      cursor.toISOString(),
+      "| now =",
+      now.toISOString(),
+      "| cursor+15min =",
+      new Date(cursor.getTime() + FIFTEEN_MIN).toISOString(),
+    );
     return { created: 0 };
   }
 
   // 3. Snapshots missing so generate every missing hour
   let created = 0;
-  const FIFTEEN_MIN = 15 * 60 * 1000;
   while (true) {
     cursor = addHours(cursor, 1); // incrementer
     // loop break condition: if cursor=3:00PM and now=3:13PM, no snapshot made since cursor+15 > now
-    // adds 15 min buffer to meet Alpaca free historical price fetch rules
-    if (cursor.getTime() + FIFTEEN_MIN > now.getTime()) {
+    // adds 15 min buffer to meet Alpaca rules + 2 mins for endtime and seconds accounting
+    if (cursor.getTime() + FIFTEEN_MIN + ONE_MIN + ONE_MIN >= now.getTime()) {
       break;
     }
     console.log(
