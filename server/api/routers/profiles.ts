@@ -57,7 +57,7 @@ const getAuthedUserProfile = protectedProcedure
   });
 
 /**
- * TODO: Create a new user based on the name and handle provided.
+ * Create a new user based on the name and handle provided.
  *
  * This endpoint is used whenever a new user authenticates with Supabase Auth
  * so that we can have a profile entry in our database for that user.
