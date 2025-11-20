@@ -227,8 +227,8 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
                             variant={stock.pnlPercent >= 0 ? "default" : "destructive"}
                             className={
                               stock.pnlPercent >= 0
-                                ? "bg-green-600"
-                                : "bg-red-600"
+                                ? "bg-green-600 text-white"
+                                : "bg-red-600 text-white"
                             }
                           >
                             {stock.pnlPercent >= 0 ? "+" : ""}
@@ -281,8 +281,8 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
                             variant={stock.pnlPercent >= 0 ? "default" : "destructive"}
                             className={
                               stock.pnlPercent >= 0
-                                ? "bg-green-600"
-                                : "bg-red-600"
+                                ? "bg-green-600 text-white"
+                                : "bg-red-600 text-white"
                             }
                           >
                             {stock.pnlPercent >= 0 ? "+" : ""}

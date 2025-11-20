@@ -2,7 +2,6 @@ import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { db } from "@/server/db";
 import { position, transaction } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
 import { getMultiplePrices } from "@/utils/alpaca/getPrice";
 import { STOCK_MAP } from "@/data/stocks";
 import OpenAI from "openai";
