@@ -24,7 +24,12 @@ import {
 import { relations } from "drizzle-orm";
 
 /* ENUMS */
-export const actionEnum = pgEnum("action_enum", ["buy", "sell"]);
+export const actionEnum = pgEnum("action_enum", [
+  "buy",
+  "sell",
+  "deposit",
+  "withdraw",
+]);
 export const notificationTypeEnum = pgEnum("notification_type_enum", [
   "transaction",
   "watchlist",
@@ -57,9 +62,9 @@ export const transaction = pgTable("transaction", {
   userId: uuid("user_id")
     .notNull()
     .references(() => profiles.id),
-  symbol: text("symbol").notNull(),
-  quantity: numeric("quantity").notNull(),
-  price: numeric("price").notNull(),
+  symbol: text("symbol"), // can be null for deposit/withdraw
+  quantity: numeric("quantity"), // can be null for deposit/withdraw
+  price: numeric("price").notNull(), // will be cash amount for deposit/withdraw
   realizedPnl: numeric("realized_pnl").notNull().default("0"), // ONLY non-zero for sells
   executedAt: timestamp("executed_at").notNull(),
   action: actionEnum("action").notNull(),

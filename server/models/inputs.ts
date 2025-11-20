@@ -15,9 +15,10 @@ export const NewUser = z.object({
 export const DraftProfileImage = z.object({ avatarUrl: z.string().nullish() });
 
 export const NewTransaction = z.object({
-  symbol: z.string(),
-  quantity: z.number(),
-  action: z.enum(["buy", "sell"]),
+  symbol: z.string().nullable(),
+  quantity: z.number().nullable(),
+  amount: z.number().nullable(), // for deposit/withdraw
+  action: z.enum(["buy", "sell", "deposit", "withdraw"]),
 });
 
 export const NewWatchlistItem = z.object({

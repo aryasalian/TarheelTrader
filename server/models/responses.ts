@@ -33,12 +33,12 @@ export const Price = z.object({
 export const Transaction = z.object({
   id: z.string(),
   userId: z.string(),
-  symbol: z.string(),
-  quantity: z.string(),
+  symbol: z.string().nullish(),
+  quantity: z.string().nullish(),
   price: z.string(),
   realizedPnl: z.string(),
   executedAt: z.date(),
-  action: z.enum(["buy", "sell"]),
+  action: z.enum(["buy", "sell", "deposit", "withdraw"]),
 });
 
 export const Transactions = z.array(Transaction);
@@ -56,5 +56,7 @@ export const TransactionStats = z.object({
   totalTransactions: z.number(),
   totalBought: z.number(),
   totalSold: z.number(),
+  totalDeposited: z.number(),
+  totalWithdrawn: z.number(),
   totalRealizedPnl: z.number(),
 });

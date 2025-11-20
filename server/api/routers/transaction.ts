@@ -23,9 +23,45 @@ const createTransaction = protectedProcedure
   .input(NewTransaction)
   .mutation(async ({ ctx, input }) => {
     const { subject } = ctx;
-    const ticker = input.symbol.toUpperCase();
-    const qty = input.quantity;
     const action = input.action;
+
+    // --------------------------
+    // DEPOSIT / WITHDRAWAL LOGIC
+    // --------------------------
+    if (action === "deposit" || action === "withdraw") {
+      if (!input.amount || input.amount <= 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Amount must be positive",
+        });
+      }
+
+      await db.insert(transaction).values({
+        id: randomUUID(),
+        userId: subject.id,
+        symbol: null,
+        quantity: null,
+        price: input.amount.toString(), // cash movement stored in price field
+        realizedPnl: "0",
+        action,
+        executedAt: new Date(),
+      });
+
+      return { success: true };
+    }
+
+    // --------------------------
+    // BUY / SELL LOGIC
+    // --------------------------
+    const ticker = input.symbol?.toUpperCase();
+    const qty = input.quantity;
+
+    if (!ticker || !qty) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Symbol and quantity required",
+      });
+    }
 
     const livePrice = await getLatestPrice(ticker);
     let realizedPnl = 0; // won't be editted for buys
@@ -131,23 +167,45 @@ const getTransactionStats = protectedProcedure
 
     let totalBought = 0;
     let totalSold = 0;
-    const totalTransactions = transactions.length;
     let totalRealizedPnl = 0;
+    let totalDeposited = 0;
+    let totalWithdrawn = 0;
+    const totalTransactions = transactions.length;
 
-    transactions.forEach((txn) => {
-      const amount = parseFloat(txn.quantity) * parseFloat(txn.price);
-      if (txn.action === "buy") {
-        totalBought += amount;
-      } else {
-        totalSold += amount;
+    for (const txn of transactions) {
+      const price = parseFloat(txn.price);
+      const qty = txn.quantity ? parseFloat(txn.quantity) : null;
+
+      switch (txn.action) {
+        case "buy": {
+          if (qty !== null) totalBought += qty * price;
+          break;
+        }
+
+        case "sell": {
+          if (qty !== null) totalSold += qty * price;
+          totalRealizedPnl += parseFloat(txn.realizedPnl);
+          break;
+        }
+
+        case "deposit": {
+          totalDeposited += price;
+          break;
+        }
+
+        case "withdraw": {
+          totalWithdrawn += price;
+          break;
+        }
       }
-      totalRealizedPnl += parseFloat(txn.realizedPnl);
-    });
+    }
 
     return {
       totalTransactions,
       totalBought,
       totalSold,
+      totalDeposited,
+      totalWithdrawn,
       totalRealizedPnl,
     };
   });
