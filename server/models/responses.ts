@@ -36,7 +36,6 @@ export const Transaction = z.object({
   symbol: z.string().nullish(),
   quantity: z.string().nullish(),
   price: z.string(),
-  realizedPnl: z.string(),
   executedAt: z.date(),
   action: z.enum(["buy", "sell", "deposit", "withdraw"]),
 });

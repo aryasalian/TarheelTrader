@@ -65,7 +65,6 @@ export const transaction = pgTable("transaction", {
   symbol: text("symbol"), // can be null for deposit/withdraw
   quantity: numeric("quantity"), // can be null for deposit/withdraw
   price: numeric("price").notNull(), // will be cash amount for deposit/withdraw
-  realizedPnl: numeric("realized_pnl").notNull().default("0"), // ONLY non-zero for sells
   executedAt: timestamp("executed_at").notNull(),
   action: actionEnum("action").notNull(),
 });

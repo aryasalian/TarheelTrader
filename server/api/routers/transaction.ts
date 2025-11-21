@@ -76,7 +76,6 @@ const createTransaction = protectedProcedure
         symbol: null,
         quantity: null,
         price: input.amount.toString(), // cash movement stored in price field
-        realizedPnl: "0",
         action,
         executedAt: new Date(),
       });

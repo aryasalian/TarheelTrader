@@ -25,7 +25,7 @@ export interface EnrichedPositionRow {
   avgCost: number;
   currentPrice: number;
   marketValue: number;
-  pnl: number;
+  unrealized: number;
   pnlPercent: number;
   isEstimate: boolean;
 }
@@ -37,7 +37,7 @@ function PositionRow({ row }: { row: EnrichedPositionRow }) {
     avgCost,
     currentPrice,
     marketValue,
-    pnl,
+    unrealized,
     pnlPercent,
     isEstimate,
   } = row;
@@ -55,13 +55,13 @@ function PositionRow({ row }: { row: EnrichedPositionRow }) {
       </TableCell>
       <TableCell>${marketValue.toFixed(2)}</TableCell>
       <TableCell>
-        <span className={pnl >= 0 ? "text-green-600" : "text-red-600"}>
-          {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
+        <span className={unrealized >= 0 ? "text-green-600" : "text-red-600"}>
+          {unrealized >= 0 ? "+" : ""}${unrealized.toFixed(2)}
         </span>
       </TableCell>
       <TableCell>
-        <Badge variant={pnl >= 0 ? "default" : "destructive"}>
-          {pnl >= 0 ? "+" : ""}
+        <Badge variant={unrealized >= 0 ? "default" : "destructive"}>
+          {unrealized >= 0 ? "+" : ""}
           {pnlPercent.toFixed(2)}%
         </Badge>
       </TableCell>
@@ -110,25 +110,38 @@ export default function PortfolioPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [symbol, setSymbol] = useState("");
   const [quantity, setQuantity] = useState("");
-  const [action, setAction] = useState<"buy" | "sell">("buy");
+  const [amount, setAmount] = useState("");
+  const [action, setAction] = useState<"buy" | "sell" | "deposit" | "withdraw">("deposit");
 
   const dailyChange = 1234.56; // Mock for now
   const dailyChangePercent = 2.45; // Mock for now
 
   const handleNewTrade = () => {
-    const isTrade = action==="buy" || action==="sell";
-    if (isTrade && !symbol.trim()) {
-      toast.error("Enter a symbol");
-      return;
+    const isTrade = action === "buy" || action === "sell";
+    const isCashMove = action === "deposit" || action === "withdraw";
+
+    if (isTrade) {
+      if (!symbol.trim()) {
+        toast.error("Enter a symbol");
+        return;
+      }
+      if (!quantity || isNaN(parseFloat(quantity)) || parseFloat(quantity) <= 0) {
+        toast.error("Enter a valid quantity");
+        return;
+      }
     }
-    if (isTrade && (!quantity || isNaN(parseFloat(quantity)) || parseFloat(quantity) < 0)) {
-      toast.error("Enter a valid quantity");
-      return;
+
+    if (isCashMove) {
+      if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        toast.error("Enter an amount");
+        return;
+      }
     }
     // TODO: ensure UI should allow to pick deposit or withdraw and option to add quantity/symbol is removed
     createTransaction.mutate({
-      symbol: symbol.toUpperCase(),
-      quantity: parseFloat(quantity),
+      symbol: isTrade ? symbol.toUpperCase() : null,
+      quantity: isTrade ? parseFloat(quantity) : null,
+      amount: isCashMove ? parseFloat(amount) : null,
       action,
     });
   };
@@ -160,35 +173,58 @@ export default function PortfolioPage() {
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
                     <Label htmlFor="action">Action</Label>
-                    <Select value={action} onValueChange={(value) => setAction(value as "buy" | "sell")}>
+                    <Select value={action} onValueChange={(value) => setAction(value as "buy" | "sell" | "deposit" | "withdraw")}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="buy">Buy</SelectItem>
                         <SelectItem value="sell">Sell</SelectItem>
+                        <SelectItem value="deposit">Deposit</SelectItem>
+                        <SelectItem value="withdraw">Withdraw</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="symbol">Ticker</Label>
-                    <Input
-                      id="symbol"
-                      placeholder="AAPL"
-                      value={symbol}
-                      onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="quantity">Quantity</Label>
-                    <Input
-                      id="quantity"
-                      type="number"
-                      placeholder="10"
-                      value={quantity}
-                      onChange={(e) => setQuantity(e.target.value)}
-                    />
-                  </div>
+
+                  {/* BUY/SELL FIELDS */}
+                  {(action === "buy" || action === "sell") && (
+                    <>
+                      <div className="grid gap-2">
+                        <Label htmlFor="symbol">Ticker</Label>
+                        <Input
+                          id="symbol"
+                          placeholder="AAPL"
+                          value={symbol}
+                          onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+                        />
+                      </div>
+
+                      <div className="grid gap-2">
+                        <Label htmlFor="quantity">Quantity</Label>
+                        <Input
+                          id="quantity"
+                          type="number"
+                          placeholder="10"
+                          value={quantity}
+                          onChange={(e) => setQuantity(e.target.value)}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* DEPOSIT/WITHDRAW FIELDS */}
+                  {(action === "deposit" || action === "withdraw") && (
+                    <div className="grid gap-2">
+                      <Label htmlFor="amount">Amount ($)</Label>
+                      <Input
+                        id="amount"
+                        type="number"
+                        placeholder="100"
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                      />
+                    </div>
+                  )}
                 </div>
                 <Button onClick={handleNewTrade} className="w-full">
                   Record Trade
@@ -199,6 +235,7 @@ export default function PortfolioPage() {
         </div>
 
         <div className="mb-6 grid gap-6 md:grid-cols-4">
+          {/* NAV */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Value</CardTitle>
@@ -210,6 +247,20 @@ export default function PortfolioPage() {
             </CardContent>
           </Card>
 
+          {/* Cash Balance */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">Cash Balance</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">
+                ${pf_stats.cash.toFixed(2)}
+              </div>
+              <p className="text-xs text-muted-foreground">Available buying power</p>
+            </CardContent>
+          </Card>
+
+          {/* Daily Change */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Daily Change</CardTitle>
@@ -225,6 +276,7 @@ export default function PortfolioPage() {
             </CardContent>
           </Card>
 
+          {/* Total PnL */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total P/L</CardTitle>
@@ -241,17 +293,6 @@ export default function PortfolioPage() {
               <p className={`text-xs ${pf_stats.totalPnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {pf_stats.totalPnl >= 0 ? '+' : ''}{pf_stats.pnlPercent.toFixed(2)}% all time
               </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Positions</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{positions?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">Active holdings</p>
             </CardContent>
           </Card>
         </div>
@@ -272,7 +313,7 @@ export default function PortfolioPage() {
                     {pf_stats.bestPerformers[0].pnlPercent.toFixed(2)}%
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    +${pf_stats.bestPerformers[0].pnl.toFixed(2)}
+                    +${pf_stats.bestPerformers[0].unrealized.toFixed(2)}
                   </p>
                 </>
               ) : (
@@ -296,8 +337,8 @@ export default function PortfolioPage() {
                     {pf_stats.worstPerformers[0].pnlPercent.toFixed(2)}%
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {pf_stats.worstPerformers[0].pnl >= 0 ? "+" : "-"}$
-                    {Math.abs(pf_stats.worstPerformers[0].pnl).toFixed(2)}
+                    {pf_stats.worstPerformers[0].unrealized >= 0 ? "+" : "-"}$
+                    {Math.abs(pf_stats.worstPerformers[0].unrealized).toFixed(2)}
                   </p>
                 </>
               ) : (
@@ -324,21 +365,15 @@ export default function PortfolioPage() {
             </CardContent>
           </Card>
 
-          {/* Unrealized PnL */}
+          {/* # of Positions */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium">Unrealized P/L</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Positions</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div
-                className={`text-2xl font-bold ${
-                  pf_stats.unrealized >= 0 ? "text-green-600" : "text-red-600"
-                }`}
-              >
-                {pf_stats.unrealized >= 0 ? "+" : "-"}$
-                {Math.abs(pf_stats.unrealized).toFixed(2)}
-              </div>
-              <p className="text-xs text-muted-foreground">Open position P/L</p>
+              <div className="text-2xl font-bold">{positions?.length || 0}</div>
+              <p className="text-xs text-muted-foreground">Active holdings</p>
             </CardContent>
           </Card>
         </div>
@@ -439,23 +474,46 @@ export default function PortfolioPage() {
                 </TableHeader>
                 <TableBody>
                   {transactions.map((txn) => {
-                    const amount = parseFloat(txn.quantity) * parseFloat(txn.price);
                     const date = new Date(txn.executedAt);
                     const formattedDate = date.toLocaleDateString();
                     
+                    const isTrade = txn.action === "buy" || txn.action === "sell";
+                    const isDeposit = txn.action === "deposit";
+
+                    const qty = txn.quantity ? parseFloat(txn.quantity) : null;
+                    const price = parseFloat(txn.price);
+                    
+                    // For trades use qty * price, otherwise use price directly as the amount
+                    const amount = isTrade && qty !== null ? qty * price : price;
+
                     return (
                       <TableRow key={txn.id}>
                         <TableCell>{formattedDate}</TableCell>
-                        <TableCell className="font-medium">{txn.symbol}</TableCell>
+                        <TableCell className="font-medium">{isTrade ? txn.symbol : "—"}</TableCell>
                         <TableCell>
-                          <Badge variant={txn.action === "buy" ? "default" : "destructive"}>
+                          <Badge variant={txn.action === "buy" ? "default" : txn.action === "sell" ? "destructive" : isDeposit ? "default" : "destructive"}>
                             {txn.action.charAt(0).toUpperCase() + txn.action.slice(1)}
                           </Badge>
                         </TableCell>
-                        <TableCell>{txn.quantity}</TableCell>
-                        <TableCell>${parseFloat(txn.price).toFixed(2)}</TableCell>
-                        <TableCell className={txn.action === "buy" ? "text-red-600" : "text-green-600"}>
-                          {txn.action === "buy" ? "-" : "+"}${amount.toFixed(2)}
+                        <TableCell>{isTrade ? qty : "—"}</TableCell>
+                        <TableCell>${price.toFixed(2)}</TableCell>
+                        <TableCell className={
+                          isTrade
+                            ? txn.action === "buy"
+                              ? "text-red-600"
+                              : "text-green-600"
+                            : isDeposit
+                            ? "text-green-600"
+                            : "text-red-600"
+                        }>
+                          {isTrade
+                            ? txn.action === "buy"
+                              ? `-$${amount.toFixed(2)}`
+                              : `+$${amount.toFixed(2)}`
+                            : isDeposit
+                            ? `+$${amount.toFixed(2)}`
+                            : `-$${amount.toFixed(2)}`
+                          }
                         </TableCell>
                       </TableRow>
                     );
