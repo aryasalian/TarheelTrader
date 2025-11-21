@@ -9,7 +9,11 @@ interface Position {
 
 export function usePortfolioStats(
   positions: Position[],
-  stats?: { totalRealizedPnl: number },
+  stats?: {
+    totalRealizedPnl: number;
+    totalDeposited: number;
+    totalWithdrawn: number;
+  },
 ) {
   // 1. Live Prices from Zustand Global Store
   const prices = usePriceStore((state) => state.prices);
@@ -19,37 +23,40 @@ export function usePortfolioStats(
     return positions.map((p) => {
       const entry = prices[p.symbol.toUpperCase()];
       const currentPrice = entry?.price ?? p.avgCost;
-      const isEstimate = entry ? !entry.success : true;
+      const isEstimate = !entry?.success;
 
-      const totalCost = p.avgCost * p.quantity;
       const marketValue = currentPrice * p.quantity;
-      const pnl = marketValue - totalCost;
+      const costBasis = p.avgCost * p.quantity;
+      const unrealized = marketValue - costBasis;
 
       return {
         symbol: p.symbol,
         quantity: p.quantity,
         avgCost: p.avgCost,
         currentPrice,
-        isEstimate,
         marketValue,
-        totalCost,
-        pnl, // unrealized
-        pnlPercent: totalCost > 0 ? (pnl / totalCost) * 100 : 0,
+        costBasis,
+        unrealized,
+        pnlPercent: costBasis > 0 ? (unrealized / costBasis) * 100 : 0,
+        isEstimate,
       };
     });
   }, [positions, prices]); // update whenever prices or positions change
 
   // Aggregate metrics
-  const totalMarketValue = enriched.reduce((sum, p) => sum + p.marketValue, 0);
-  const totalCostBasis = enriched.reduce((sum, p) => sum + p.totalCost, 0);
-  const unrealized = enriched.reduce((sum, p) => sum + p.pnl, 0);
+  const totalMarketValue = enriched.reduce((s, p) => s + p.marketValue, 0);
+  const totalCostBasis = enriched.reduce((s, p) => s + p.costBasis, 0);
+  const totalUnrealized = enriched.reduce((s, p) => s + p.unrealized, 0);
 
   const realized = stats?.totalRealizedPnl ?? 0;
+  const deposited = stats?.totalDeposited ?? 0;
+  const withdrawn = stats?.totalWithdrawn ?? 0;
 
-  const totalPnl = unrealized + realized;
+  const cash = deposited - withdrawn + realized; // cash from trades + deposits - withdrawals
+
+  const nav = cash + totalMarketValue;
+  const totalPnl = realized + totalUnrealized;
   const pnlPercent = totalCostBasis > 0 ? (totalPnl / totalCostBasis) * 100 : 0;
-
-  const nav = totalMarketValue + realized;
 
   // Best/Worst performers
   const bestPerformers = enriched
@@ -63,21 +70,24 @@ export function usePortfolioStats(
     .slice(0, 5);
 
   return {
-    // Core portfolio metrics
+    // big numbers
     nav,
-    totalMarketValue,
-    totalCostBasis,
-    unrealized,
+    cash,
     realized,
+    unrealized: totalUnrealized,
     totalPnl,
     pnlPercent,
 
-    // Enriched rows
+    // breakdowns
     positions: enriched,
-    count: positions.length,
-
-    // Top/bottom performers
     bestPerformers,
     worstPerformers,
+
+    // portfolio info
+    totalMarketValue,
+    totalCostBasis,
+    deposited,
+    withdrawn,
+    count: positions.length,
   };
 }
