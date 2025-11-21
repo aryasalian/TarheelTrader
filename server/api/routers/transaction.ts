@@ -25,6 +25,34 @@ const createTransaction = protectedProcedure
     const { subject } = ctx;
     const action = input.action;
 
+    // -----------------------------
+    // STEP 1: Compute current cash
+    // -----------------------------
+    const txns = await db.query.transaction.findMany({
+      where: eq(transaction.userId, subject.id),
+    });
+
+    let cash = 0;
+    for (const tx of txns) {
+      const price = parseFloat(tx.price ?? "0");
+      const qty = parseFloat(tx.quantity ?? "0");
+
+      switch (tx.action) {
+        case "deposit":
+          cash += price;
+          break;
+        case "withdraw":
+          cash -= price;
+          break;
+        case "buy":
+          cash -= price * qty;
+          break;
+        case "sell":
+          cash += price * qty;
+          break;
+      }
+    }
+
     // --------------------------
     // DEPOSIT / WITHDRAWAL LOGIC
     // --------------------------
@@ -33,6 +61,12 @@ const createTransaction = protectedProcedure
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Amount must be positive",
+        });
+      }
+      if (action === "withdraw" && input.amount > cash) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Insufficient cash to withdraw this amount.",
         });
       }
 
@@ -56,6 +90,7 @@ const createTransaction = protectedProcedure
     const ticker = input.symbol?.toUpperCase();
     const qty = input.quantity;
 
+    // Should get handled in UI, this is a safety measure
     if (!ticker || !qty) {
       throw new TRPCError({
         code: "BAD_REQUEST",
@@ -63,16 +98,37 @@ const createTransaction = protectedProcedure
       });
     }
 
+    // -----------------------------------
+    // STEP 2: Fetch live price for buys/sells
+    // -----------------------------------
     const livePrice = await getLatestPrice(ticker);
-    let realizedPnl = 0; // won't be editted for buys
 
-    // 1. FETCH existing position for user + symbol
+    // -----------------------------------
+    // STEP 3: Enforce cash constraint on BUY
+    // -----------------------------------
+    if (action === "buy") {
+      const totalCost = livePrice * qty;
+
+      if (totalCost > cash) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Insufficient cash. You need $${totalCost.toFixed(
+            2,
+          )} but only have $${cash.toFixed(2)}. Please deposit to complete transaction.`,
+        });
+      }
+    }
+
+    // -----------------------------------
+    // STEP 4: Fetch existing position
+    // -----------------------------------
     const existing = await db.query.position.findFirst({
       where: and(eq(position.userId, subject.id), eq(position.symbol, ticker)),
     });
 
-    // 2. CREATE positions
-    // BUY LOGIC
+    // -----------------------------------
+    // STEP 5: BUY LOGIC
+    // -----------------------------------
     if (action === "buy") {
       if (!existing) {
         // Create new position
@@ -88,7 +144,6 @@ const createTransaction = protectedProcedure
         // Update existing position using weighted average
         const oldQty = parseFloat(existing.quantity);
         const oldAvg = parseFloat(existing.avgCost);
-
         const newQty = oldQty + qty;
         const newAvg = (oldQty * oldAvg + qty * livePrice) / newQty;
 
@@ -103,7 +158,9 @@ const createTransaction = protectedProcedure
       }
     }
 
-    // SELL LOGIC
+    // -----------------------------------
+    // STEP 6: SELL LOGIC
+    // -----------------------------------
     if (action === "sell") {
       if (!existing) {
         throw new TRPCError({
@@ -112,8 +169,6 @@ const createTransaction = protectedProcedure
         });
       }
 
-      // Realized PnL for this trade
-      realizedPnl = (livePrice - parseFloat(existing.avgCost)) * qty;
       const oldQty = parseFloat(existing.quantity);
       const newQty = oldQty - qty;
 
@@ -139,7 +194,9 @@ const createTransaction = protectedProcedure
       }
     }
 
-    // 3. INSERT transaction
+    // -----------------------------------
+    // STEP 7: INSERT TRANSACTION
+    // -----------------------------------
     const [newTransaction] = await db
       .insert(transaction)
       .values({
@@ -148,7 +205,6 @@ const createTransaction = protectedProcedure
         symbol: ticker,
         quantity: qty.toString(),
         price: livePrice.toString(),
-        realizedPnl: realizedPnl.toString(), // 0 for buys, non-zero for sells
         action,
         executedAt: new Date(),
       })
@@ -167,7 +223,6 @@ const getTransactionStats = protectedProcedure
 
     let totalBought = 0;
     let totalSold = 0;
-    let totalRealizedPnl = 0;
     let totalDeposited = 0;
     let totalWithdrawn = 0;
     const totalTransactions = transactions.length;
@@ -184,7 +239,6 @@ const getTransactionStats = protectedProcedure
 
         case "sell": {
           if (qty !== null) totalSold += qty * price;
-          totalRealizedPnl += parseFloat(txn.realizedPnl);
           break;
         }
 
@@ -206,7 +260,6 @@ const getTransactionStats = protectedProcedure
       totalSold,
       totalDeposited,
       totalWithdrawn,
-      totalRealizedPnl,
     };
   });
 

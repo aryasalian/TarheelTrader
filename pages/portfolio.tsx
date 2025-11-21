@@ -116,14 +116,16 @@ export default function PortfolioPage() {
   const dailyChangePercent = 2.45; // Mock for now
 
   const handleNewTrade = () => {
-    if (!symbol.trim()) {
+    const isTrade = action==="buy" || action==="sell";
+    if (isTrade && !symbol.trim()) {
       toast.error("Enter a symbol");
       return;
     }
-    if (!quantity || isNaN(parseFloat(quantity)) || parseFloat(quantity) < 0) {
+    if (isTrade && (!quantity || isNaN(parseFloat(quantity)) || parseFloat(quantity) < 0)) {
       toast.error("Enter a valid quantity");
       return;
     }
+    // TODO: ensure UI should allow to pick deposit or withdraw and option to add quantity/symbol is removed
     createTransaction.mutate({
       symbol: symbol.toUpperCase(),
       quantity: parseFloat(quantity),

@@ -58,5 +58,4 @@ export const TransactionStats = z.object({
   totalSold: z.number(),
   totalDeposited: z.number(),
   totalWithdrawn: z.number(),
-  totalRealizedPnl: z.number(),
 });
