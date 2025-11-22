@@ -7,8 +7,12 @@
 
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { db } from "@/server/db";
-import { hourlyPortfolioSnapshot, position } from "@/server/db/schema";
-import { eq, desc } from "drizzle-orm";
+import {
+  hourlyPortfolioSnapshot,
+  position,
+  transaction,
+} from "@/server/db/schema";
+import { eq, desc, and, lte } from "drizzle-orm";
 import { alpaca } from "@/utils/alpaca/clients";
 import { randomUUID } from "crypto";
 
@@ -57,6 +61,60 @@ async function getPriceAtHour(symbol: string, ts: Date) {
   return collected[0]?.ClosePrice ?? null;
 }
 
+async function computeCashAtHour(userId: string, ts: Date) {
+  const txns = await db.query.transaction.findMany({
+    where: and(
+      eq(transaction.userId, userId),
+      lte(transaction.executedAt, ts), // <— FILTER BY HOUR
+    ),
+  });
+
+  let cash = 0;
+
+  for (const t of txns) {
+    const price = parseFloat(t.price || "0");
+    const qty = t.quantity ? parseFloat(t.quantity) : 0;
+
+    switch (t.action) {
+      case "deposit":
+        cash += price;
+        break;
+
+      case "withdraw":
+        cash -= price;
+        break;
+
+      case "buy":
+        cash -= price * qty;
+        break;
+
+      case "sell":
+        cash += price * qty;
+        break;
+    }
+  }
+
+  return cash;
+}
+
+async function computeNavAtHour(userId: string, ts: Date) {
+  const cash = await computeCashAtHour(userId, ts);
+
+  const positions = await db.query.position.findMany({
+    where: eq(position.userId, userId),
+  });
+
+  let mv = 0;
+
+  for (const p of positions) {
+    const price = await getPriceAtHour(p.symbol, ts);
+    const finalPrice = price ?? Number(p.avgCost); // fallback
+    mv += Number(p.quantity) * finalPrice;
+  }
+
+  return cash + mv;
+}
+
 async function insertSnapshot(userId: string, ts: Date, nav: number) {
   await db
     .insert(hourlyPortfolioSnapshot)
@@ -73,23 +131,6 @@ async function insertSnapshot(userId: string, ts: Date, nav: number) {
       ],
       set: { eohValue: nav.toString() },
     });
-}
-
-async function computeNavAtHour(userId: string, ts: Date) {
-  const positions = await db.query.position.findMany({
-    where: eq(position.userId, userId),
-  });
-
-  if (positions.length === 0) return 0;
-  let nav = 0;
-
-  for (const p of positions) {
-    const price = await getPriceAtHour(p.symbol, ts);
-    const finalPrice = price ?? Number(p.avgCost); // fallback
-    nav += Number(p.quantity) * finalPrice;
-  }
-
-  return nav;
 }
 
 /* SNAPSHOT PROCEDURE */
