@@ -58,3 +58,14 @@ export const TransactionStats = z.object({
   totalDeposited: z.number(),
   totalWithdrawn: z.number(),
 });
+
+export const PortfolioHistoryPoint = z.object({
+  date: z.string(),
+  value: z.number(),
+});
+
+export const PortfolioHistoryOutput = z.object({
+  points: z.array(PortfolioHistoryPoint),
+  startValue: z.number(),
+  endValue: z.number(),
+});

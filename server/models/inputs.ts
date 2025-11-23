@@ -28,3 +28,6 @@ export const NewWatchlistItem = z.object({
 export const WatchlistItemId = z.object({
   id: z.string(),
 });
+
+export const HistoryRange = z.enum(["1D", "1W", "1M", "1Y"]);
+export const HistoryInterval = z.enum(["hourly", "daily", "weekly", "monthly"]);

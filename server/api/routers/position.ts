@@ -6,12 +6,17 @@
  */
 
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { Positions, Price } from "@/server/models/responses";
+import {
+  PortfolioHistoryOutput,
+  Positions,
+  Price,
+} from "@/server/models/responses";
 import { db } from "@/server/db";
-import { position, transaction } from "@/server/db/schema";
-import { eq, and, lte } from "drizzle-orm";
+import { hourlyPortfolioSnapshot, position } from "@/server/db/schema";
+import { eq, and, gte, asc } from "drizzle-orm";
 import { z } from "zod";
 import { getLatestPrice, getMultiplePrices } from "@/utils/alpaca/getPrice";
+import { HistoryInterval, HistoryRange } from "@/server/models/inputs";
 
 const getPositions = protectedProcedure
   .output(Positions)
@@ -73,105 +78,112 @@ const getStockPrices = protectedProcedure
     }
   });
 
-const getPortfolioHistory = protectedProcedure
-  .input(z.object({ days: z.number().min(7).max(365).default(30) }))
-  .output(
-    z.array(
-      z.object({
-        date: z.string(),
-        value: z.number(),
-      }),
-    ),
+/* Helper Funcs for Portfolio History API */
+
+function startDateForRange(range: "1D" | "1W" | "1M" | "1Y") {
+  const now = new Date();
+  const d = new Date(now);
+  if (range === "1D") d.setDate(now.getDate() - 1);
+  if (range === "1W") d.setDate(now.getDate() - 7);
+  if (range === "1M") d.setMonth(now.getMonth() - 1);
+  if (range === "1Y") d.setFullYear(now.getFullYear() - 1);
+  return d;
+}
+
+function floorToWeek(date: Date) {
+  const d = new Date(date);
+
+  // JS: 0 = Sun, 1 = Mon, ..., 6 = Sat
+  // We convert so that Monday = 1 ... Sunday = 7
+  const js = d.getDay(); // 0..6
+  const iso = js === 0 ? 6 : js - 1; // Mon = 0,...Sun = 6
+
+  // Move backwards to Monday (1)
+  d.setDate(d.getDate() - iso);
+  d.setHours(0, 0, 0, 0);
+
+  return d;
+}
+
+function floorToMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+export const getPortfolioHistory = protectedProcedure
+  .input(
+    z.object({
+      range: HistoryRange,
+      interval: HistoryInterval,
+    }),
   )
+  .output(PortfolioHistoryOutput)
   .query(async ({ ctx, input }) => {
     const { subject } = ctx;
-    const daysAgo = input.days;
+    const { range, interval } = input;
 
-    // Get all transactions for the user
-    const transactions = await db.query.transaction.findMany({
-      where: eq(transaction.userId, subject.id),
-      orderBy: (transaction, { asc }) => [asc(transaction.executedAt)],
-    });
+    const since = startDateForRange(range);
 
-    if (transactions.length === 0) {
-      return [];
+    // Fetch all snapshots from the last X period
+    const snapshots = await db
+      .select()
+      .from(hourlyPortfolioSnapshot)
+      .where(
+        and(
+          eq(hourlyPortfolioSnapshot.userId, subject.id),
+          gte(hourlyPortfolioSnapshot.timestamp, since),
+        ),
+      )
+      .orderBy(asc(hourlyPortfolioSnapshot.timestamp));
+
+    if (snapshots.length === 0) {
+      return {
+        points: [],
+        startValue: 0,
+        endValue: 0,
+      };
     }
 
-    // Find the earliest transaction date
-    const firstTransactionDate = new Date(transactions[0].executedAt);
-    const today = new Date();
-    const startDate = new Date(today);
-    startDate.setDate(today.getDate() - daysAgo);
-
-    // Use the later of first transaction date or requested start date
-    const effectiveStartDate =
-      firstTransactionDate > startDate ? firstTransactionDate : startDate;
-
-    // Generate daily snapshots
-    const dailySnapshots: { date: string; value: number }[] = [];
-    const currentDate = new Date(effectiveStartDate);
-    currentDate.setHours(0, 0, 0, 0);
-
-    while (currentDate <= today) {
-      const dateStr = currentDate.toISOString().split("T")[0];
-      const endOfDay = new Date(currentDate);
-      endOfDay.setHours(23, 59, 59, 999);
-
-      // Get all transactions up to this date
-      const txnsUpToDate = transactions.filter(
-        (txn) => new Date(txn.executedAt) <= endOfDay,
-      );
-
-      // Calculate positions at this point in time
-      const positionsMap = new Map<
-        string,
-        { quantity: number; avgCost: number }
-      >();
-
-      for (const txn of txnsUpToDate) {
-        const symbol = txn.symbol;
-        const qty = parseFloat(txn.quantity);
-        const price = parseFloat(txn.price);
-        const existing = positionsMap.get(symbol) || {
-          quantity: 0,
-          avgCost: 0,
-        };
-
-        if (txn.action === "buy") {
-          const newQty = existing.quantity + qty;
-          const newAvg =
-            newQty > 0
-              ? (existing.quantity * existing.avgCost + qty * price) / newQty
-              : price;
-          positionsMap.set(symbol, { quantity: newQty, avgCost: newAvg });
-        } else {
-          // sell
-          const newQty = existing.quantity - qty;
-          if (newQty > 0) {
-            positionsMap.set(symbol, {
-              quantity: newQty,
-              avgCost: existing.avgCost,
-            });
-          } else {
-            positionsMap.delete(symbol);
-          }
-        }
+    // Group by the desired interval
+    // Helper to pick a bucket label
+    function bucketKey(ts: Date): string {
+      if (interval === "hourly") {
+        return ts.toISOString().slice(0, 13) + ":00:00"; // YYYY-MM-DDTHH:00:00
       }
-
-      // Calculate total portfolio value at historical cost basis
-      // In a real scenario, you'd fetch historical prices, but for simplicity
-      // we'll use the cost basis as an approximation
-      let totalValue = 0;
-      for (const [symbol, pos] of positionsMap.entries()) {
-        totalValue += pos.quantity * pos.avgCost;
+      if (interval === "daily") {
+        return ts.toISOString().split("T")[0];
       }
-
-      dailySnapshots.push({ date: dateStr, value: totalValue });
-
-      currentDate.setDate(currentDate.getDate() + 1);
+      if (interval === "weekly") {
+        return floorToWeek(ts).toISOString().split("T")[0];
+      }
+      if (interval === "monthly") {
+        const d = floorToMonth(ts);
+        return d.toISOString().split("T")[0];
+      }
+      return "";
     }
 
-    return dailySnapshots;
+    const map = new Map<string, number>();
+    for (const snap of snapshots) {
+      const ts = new Date(snap.timestamp);
+      const key = bucketKey(ts);
+
+      map.set(key, Number(snap.eohValue));
+    }
+
+    // Convert to sorted array
+    const points = [...map.entries()]
+      .map(([date, value]) => ({ date, value }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // Compute start/end
+    const startValue = points[0].value;
+    const endValue = points[points.length - 1].value;
+
+    return {
+      points,
+      startValue,
+      endValue,
+    };
   });
 
 /**

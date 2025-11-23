@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -70,20 +71,27 @@ function PositionRow({ row }: { row: EnrichedPositionRow }) {
 }
 
 export default function PortfolioPage() {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [symbol, setSymbol] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [amount, setAmount] = useState("");
+  const [action, setAction] = useState<"buy" | "sell" | "deposit" | "withdraw">("deposit");
+  const [range, setRange] = useState<"1D" | "1W" | "1M" | "1Y">("1M");
+  const [interval, setInterval] = useState<"hourly" | "daily" | "weekly" | "monthly">("hourly");
+
   const utils = api.useUtils();
   const { data: positions = [] } = api.position.getPositions.useQuery();
-  const { data: portfolioHistory = [] } = api.position.getPortfolioHistory.useQuery({
-    days: 30,
-  });
-  useSnapshotSync();
-  const symbols = positions.map((p) => p.symbol);
-  // Sync prices globally using Zustand + tRPC
-  usePriceSync(symbols, {
+  usePriceSync(positions.map((p) => p.symbol), {
     refetchInterval: 15000, // 15 seconds
     staleTime: 14000
   });
 
   // Now all other hooks/data points have fresh PriceStore to work with
+  useSnapshotSync();
+  const { data: portfolioHistory = { points: [], startValue: 0, endValue: 0 }} = api.position.getPortfolioHistory.useQuery({
+    range: range,
+    interval: interval
+  });
   const { data: transactions } = api.transaction.getTransactions.useQuery();
   const { data: stats } = api.transaction.getTransactionStats.useQuery();
   const pf_stats = usePortfolioStats(positions, stats);
@@ -106,12 +114,6 @@ export default function PortfolioPage() {
       toast.success("Trade recorded");
     },
   });
-
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [symbol, setSymbol] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [amount, setAmount] = useState("");
-  const [action, setAction] = useState<"buy" | "sell" | "deposit" | "withdraw">("deposit");
 
   const dailyChange = 1234.56; // Mock for now
   const dailyChangePercent = 2.45; // Mock for now
@@ -137,7 +139,7 @@ export default function PortfolioPage() {
         return;
       }
     }
-    // TODO: ensure UI should allow to pick deposit or withdraw and option to add quantity/symbol is removed
+
     createTransaction.mutate({
       symbol: isTrade ? symbol.toUpperCase() : null,
       quantity: isTrade ? parseFloat(quantity) : null,
@@ -378,13 +380,89 @@ export default function PortfolioPage() {
           </Card>
         </div>
 
+        {/* --- Chart Controls & Metrics --- */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Portfolio Value Over Time</CardTitle>
-            <CardDescription>Historical performance chart</CardDescription>
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle>Portfolio Value Over Time</CardTitle>
+                <CardDescription>
+                  Historical performance based on hourly snapshots
+                </CardDescription>
+              </div>
+
+              {/* RANGE TOGGLE */}
+              <ToggleGroup
+                type="single"
+                value={range}
+                onValueChange={(v) => v && setRange(v as "1D" | "1W" | "1M" | "1Y")}
+                className="flex gap-1"
+              >
+                {(["1D", "1W", "1M", "1Y"] as const).map((r) => (
+                  <ToggleGroupItem
+                    key={r}
+                    value={r}
+                    className="px-3 py-1 text-xs"
+                    aria-label={r}
+                  >
+                    {r}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+
+              {/* INTERVAL TOGGLE */}
+              <ToggleGroup
+                type="single"
+                value={interval}
+                onValueChange={(v) => v && setInterval(v as "hourly" | "daily" | "weekly" | "monthly")}
+                className="flex gap-1"
+              >
+                {(["hourly", "daily", "weekly", "monthly"] as const).map((i) => (
+                  <ToggleGroupItem
+                    key={i}
+                    value={i}
+                    className="capitalize px-3 py-1 text-xs"
+                    aria-label={i}
+                  >
+                    {i}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </div>
           </CardHeader>
           <CardContent>
-            <PortfolioChart data={portfolioHistory} />
+            {portfolioHistory?.points?.length === 0 ? (
+              <div className="flex h-64 items-center justify-center text-muted-foreground">
+                No history yet
+              </div>
+            ) : (
+              <div className="relative">
+                {/* PnL badge */}
+                <div
+                  className={`
+                    absolute right-2 top-2 z-10 
+                    text-xs px-3 py-1.5 rounded-md shadow-md flex flex-col items-end
+                    ${(portfolioHistory.endValue - portfolioHistory.startValue) > 0 
+                      ? "bg-green-600 text-white" 
+                      : (portfolioHistory.endValue - portfolioHistory.startValue) < 0 
+                      ? "bg-red-600 text-white" 
+                      : "bg-gray-700 text-white"}
+                  `}
+                >
+                  <span className="font-semibold">
+                    {(portfolioHistory.endValue - portfolioHistory.startValue) >= 0 ? "+" : "-"}
+                    ${Math.abs(portfolioHistory.endValue - portfolioHistory.startValue).toFixed(2)}
+                  </span>
+
+                  <span className="text-[10px] opacity-90">
+                    {portfolioHistory.startValue > 0 ? (((portfolioHistory.endValue - portfolioHistory.startValue) / portfolioHistory.startValue) * 100).toFixed(2) : "0.00"}%
+                  </span>
+                </div>
+
+                {/* Chart */}
+                <PortfolioChart data={portfolioHistory.points} />
+              </div>
+            )}
           </CardContent>
         </Card>
 
