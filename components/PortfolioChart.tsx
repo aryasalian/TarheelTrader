@@ -16,6 +16,7 @@ import {
 } from "chart.js";
 
 import "chartjs-adapter-date-fns";
+import { toZonedTime } from "date-fns-tz";
 import { Line } from "react-chartjs-2";
 
 // Register Chart.js components
@@ -43,7 +44,7 @@ interface PortfolioChartProps {
 
 export function PortfolioChart({ data, interval }: PortfolioChartProps) {
   const chartData = useMemo(() => {
-    const labels = data.map((point) => new Date(point.date));
+    const labels = data.map((point) => toZonedTime(point.date+"Z", Intl.DateTimeFormat().resolvedOptions().timeZone));
     const values = data.map((point) => point.value);
 
     return {
