@@ -80,13 +80,14 @@ const getStockPrices = protectedProcedure
 
 /* Helper Funcs for Portfolio History API */
 
-function startDateForRange(range: "1D" | "1W" | "1M" | "1Y") {
+function startDateForRange(range: "1D" | "1W" | "1M" | "1Y" | "YTD") {
   const now = new Date();
   const d = new Date(now);
   if (range === "1D") d.setDate(now.getDate() - 1);
   if (range === "1W") d.setDate(now.getDate() - 7);
   if (range === "1M") d.setMonth(now.getMonth() - 1);
   if (range === "1Y") d.setFullYear(now.getFullYear() - 1);
+  if (range === "YTD") return new Date(now.getFullYear(), 0, 1); // Jan 1 of this year
   return d;
 }
 

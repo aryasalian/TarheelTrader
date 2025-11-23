@@ -162,15 +162,6 @@ const takeHourlySnapshots = protectedProcedure.mutation(async ({ ctx }) => {
 
   // 2. Already up to date
   if (cursor.getTime() + FIFTEEN_MIN >= now.getTime()) {
-    console.log(
-      "FETCHING SNAPSHOT:",
-      "cursor =",
-      cursor.toISOString(),
-      "| now =",
-      now.toISOString(),
-      "| cursor+15min =",
-      new Date(cursor.getTime() + FIFTEEN_MIN).toISOString(),
-    );
     return { created: 0 };
   }
 
@@ -183,15 +174,6 @@ const takeHourlySnapshots = protectedProcedure.mutation(async ({ ctx }) => {
     if (cursor.getTime() + FIFTEEN_MIN + ONE_MIN + ONE_MIN >= now.getTime()) {
       break;
     }
-    console.log(
-      "FETCHING SNAPSHOT:",
-      "cursor =",
-      cursor.toISOString(),
-      "| now =",
-      now.toISOString(),
-      "| cursor+15min =",
-      new Date(cursor.getTime() + FIFTEEN_MIN).toISOString(),
-    );
     const nav = await computeNavAtHour(subject.id, cursor);
     await insertSnapshot(subject.id, cursor, nav);
     created++;

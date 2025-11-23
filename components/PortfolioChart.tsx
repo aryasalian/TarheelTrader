@@ -7,12 +7,15 @@ import {
   LinearScale,
   PointElement,
   LineElement,
+  TimeScale,
   Title,
   Tooltip,
   Legend,
   Filler,
   ChartOptions,
 } from "chart.js";
+
+import "chartjs-adapter-date-fns";
 import { Line } from "react-chartjs-2";
 
 // Register Chart.js components
@@ -21,6 +24,7 @@ ChartJS.register(
   LinearScale,
   PointElement,
   LineElement,
+  TimeScale,   // REQUIRED for "time" scale
   Title,
   Tooltip,
   Legend,
@@ -34,15 +38,12 @@ interface PortfolioDataPoint {
 
 interface PortfolioChartProps {
   data: PortfolioDataPoint[];
+  interval: "hourly" | "daily" | "weekly" | "monthly";
 }
 
-export function PortfolioChart({ data }: PortfolioChartProps) {
+export function PortfolioChart({ data, interval }: PortfolioChartProps) {
   const chartData = useMemo(() => {
-    const labels = data.map((point) => {
-      const date = new Date(point.date);
-      return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    });
-
+    const labels = data.map((point) => new Date(point.date));
     const values = data.map((point) => point.value);
 
     return {
@@ -92,6 +93,29 @@ export function PortfolioChart({ data }: PortfolioChartProps) {
     },
     scales: {
       x: {
+        type: "time",
+        time: {
+          unit:
+            interval === "hourly"
+              ? "hour"
+              : interval === "daily"
+              ? "day"
+              : interval === "weekly"
+              ? "week"
+              : "month",
+
+          displayFormats: {
+            hour: "MMM d, h a",
+            day: "MMM d",
+            week: "MMM d",
+            month: "MMM yyyy",
+          },
+
+          tooltipFormat:
+            interval === "hourly"
+              ? "MMM d, h:mm a"
+              : "MMM d, yyyy"
+        },
         grid: {
           display: false,
         },
@@ -99,10 +123,11 @@ export function PortfolioChart({ data }: PortfolioChartProps) {
           maxRotation: 45,
           minRotation: 45,
           autoSkip: true,
-          maxTicksLimit: 10,
+          maxTicksLimit: interval === "hourly" ? 12 : 7,
         },
       },
       y: {
+        beginAtZero: false,
         grid: {
           color: "rgba(0, 0, 0, 0.05)",
         },
@@ -128,7 +153,11 @@ export function PortfolioChart({ data }: PortfolioChartProps) {
 
   return (
     <div className="h-64">
-      <Line data={chartData} options={options} />
+      <Line
+        key={`${interval}-${data.length}`}
+        data={chartData}
+        options={options}
+      />
     </div>
   );
 }

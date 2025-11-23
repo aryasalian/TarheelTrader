@@ -76,7 +76,7 @@ export default function PortfolioPage() {
   const [quantity, setQuantity] = useState("");
   const [amount, setAmount] = useState("");
   const [action, setAction] = useState<"buy" | "sell" | "deposit" | "withdraw">("deposit");
-  const [range, setRange] = useState<"1D" | "1W" | "1M" | "1Y">("1M");
+  const [range, setRange] = useState<"1D" | "1W" | "1M" | "YTD" | "1Y">("1M");
   const [interval, setInterval] = useState<"hourly" | "daily" | "weekly" | "monthly">("hourly");
 
   const utils = api.useUtils();
@@ -115,8 +115,14 @@ export default function PortfolioPage() {
     },
   });
 
-  const dailyChange = 1234.56; // Mock for now
-  const dailyChangePercent = 2.45; // Mock for now
+  // Fetch 1D history separately
+  const { data: oneDayHistory } = api.position.getPortfolioHistory.useQuery({
+    range: "1D",
+    interval: "hourly",
+  });
+  // Compute daily values safely
+  const dailyChange = oneDayHistory && oneDayHistory.points.length > 1 ? oneDayHistory.endValue - oneDayHistory.startValue : 0;
+  const dailyChangePercent = oneDayHistory && oneDayHistory.startValue > 0 ? (dailyChange / oneDayHistory.startValue) * 100 : 0;
 
   const handleNewTrade = () => {
     const isTrade = action === "buy" || action === "sell";
@@ -395,14 +401,14 @@ export default function PortfolioPage() {
               <ToggleGroup
                 type="single"
                 value={range}
-                onValueChange={(v) => v && setRange(v as "1D" | "1W" | "1M" | "1Y")}
+                onValueChange={(v) => v && setRange(v as "1D" | "1W" | "1M" | "1Y" | "YTD")}
                 className="flex gap-1"
               >
-                {(["1D", "1W", "1M", "1Y"] as const).map((r) => (
+                {(["1D", "1W", "1M", "1Y", "YTD"] as const).map((r) => (
                   <ToggleGroupItem
                     key={r}
                     value={r}
-                    className="px-3 py-1 text-xs"
+                    className="px-3 py-1 text-xs border border-neutral-750 data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
                     aria-label={r}
                   >
                     {r}
@@ -421,7 +427,7 @@ export default function PortfolioPage() {
                   <ToggleGroupItem
                     key={i}
                     value={i}
-                    className="capitalize px-3 py-1 text-xs"
+                    className="capitalize px-3 py-1 text-xs border border-neutral-750 data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
                     aria-label={i}
                   >
                     {i}
@@ -429,40 +435,51 @@ export default function PortfolioPage() {
                 ))}
               </ToggleGroup>
             </div>
+            <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+              <span>
+                P/L for selected period ({range}, {interval}):
+              </span>
+
+              {/* Tiny colored PnL badge */}
+              <Badge
+                className={`
+                  ml-1 px-2 py-0.5 text-[10px] font-semibold
+                  ${
+                    portfolioHistory.endValue - portfolioHistory.startValue > 0
+                      ? "bg-green-600 text-white"
+                      : portfolioHistory.endValue - portfolioHistory.startValue < 0
+                      ? "bg-red-600 text-white"
+                      : "bg-gray-600 text-white"
+                  }
+                `}
+              >
+                {/* Absolute PnL */}
+                {(portfolioHistory.endValue - portfolioHistory.startValue >= 0 ? "+" : "-") +
+                  "$" +
+                  Math.abs(
+                    portfolioHistory.endValue - portfolioHistory.startValue
+                  ).toFixed(2)}
+
+                {/* Divider dot */}
+                {" | "}
+
+                {/* % PnL */}
+                {portfolioHistory.startValue > 0
+                  ? (
+                      ((portfolioHistory.endValue - portfolioHistory.startValue) /
+                        portfolioHistory.startValue) *
+                      100
+                    ).toFixed(2)
+                  : "0.00"}
+                %
+              </Badge>
+            </div>
           </CardHeader>
+
           <CardContent>
-            {portfolioHistory?.points?.length === 0 ? (
-              <div className="flex h-64 items-center justify-center text-muted-foreground">
-                No history yet
+            <div className="relative">
+                <PortfolioChart data={portfolioHistory.points} interval={interval}/>
               </div>
-            ) : (
-              <div className="relative">
-                {/* PnL badge */}
-                <div
-                  className={`
-                    absolute right-2 top-2 z-10 
-                    text-xs px-3 py-1.5 rounded-md shadow-md flex flex-col items-end
-                    ${(portfolioHistory.endValue - portfolioHistory.startValue) > 0 
-                      ? "bg-green-600 text-white" 
-                      : (portfolioHistory.endValue - portfolioHistory.startValue) < 0 
-                      ? "bg-red-600 text-white" 
-                      : "bg-gray-700 text-white"}
-                  `}
-                >
-                  <span className="font-semibold">
-                    {(portfolioHistory.endValue - portfolioHistory.startValue) >= 0 ? "+" : "-"}
-                    ${Math.abs(portfolioHistory.endValue - portfolioHistory.startValue).toFixed(2)}
-                  </span>
-
-                  <span className="text-[10px] opacity-90">
-                    {portfolioHistory.startValue > 0 ? (((portfolioHistory.endValue - portfolioHistory.startValue) / portfolioHistory.startValue) * 100).toFixed(2) : "0.00"}%
-                  </span>
-                </div>
-
-                {/* Chart */}
-                <PortfolioChart data={portfolioHistory.points} />
-              </div>
-            )}
           </CardContent>
         </Card>
 
