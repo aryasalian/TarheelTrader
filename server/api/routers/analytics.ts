@@ -12,9 +12,26 @@ import OpenAI from "openai";
 import { alpaca } from "@/utils/alpaca/clients";
 import YahooFinance from "yahoo-finance2";
 
+const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_KEY,
 });
+
+async function getSectorForSymbol(symbol: string): Promise<string> {
+  try {
+    const data = await yf.quoteSummary(symbol, {
+      modules: ["summaryProfile"],
+    });
+
+    const sector = data?.summaryProfile?.sector;
+    if (!sector) return "Other";
+    return sector;
+  } catch (err) {
+    console.error("Failed sector lookup for:", symbol, err);
+    return "Other";
+  }
+}
 
 // Sector breakdown
 const getSectorBreakdown = protectedProcedure.query(async ({ ctx }) => {
@@ -25,30 +42,37 @@ const getSectorBreakdown = protectedProcedure.query(async ({ ctx }) => {
     where: eq(position.userId, subject.id),
   });
 
-  if (positions.length === 0) {
-    return [];
-  }
+  if (positions.length === 0) return [];
 
   // Get current prices
   const symbols = positions.map((p) => p.symbol);
   const priceMap = await getMultiplePrices(symbols);
 
-  // Calculate sector allocations
+  // fetch sectors for each symbol (parallelized)
   const sectorMap = new Map<string, { value: number; symbols: string[] }>();
+  const sectorCache = new Map<string, string>(); // avoid duplicates
+
   let totalValue = 0;
 
   for (const pos of positions) {
-    const currentPrice = priceMap[pos.symbol] ?? parseFloat(pos.avgCost);
-    const value = parseFloat(pos.quantity) * currentPrice;
-    totalValue += value;
+    const ticker = pos.symbol;
 
-    const stockMeta = STOCK_MAP[pos.symbol];
-    const sector = stockMeta?.sector ?? "other";
+    let sector: string;
+    if (sectorCache.has(ticker)) {
+      sector = sectorCache.get(ticker)!;
+    } else {
+      sector = await getSectorForSymbol(ticker);
+      sectorCache.set(ticker, sector);
+    }
+
+    const price = priceMap[ticker] ?? parseFloat(pos.avgCost);
+    const value = parseFloat(pos.quantity) * price;
+    totalValue += value;
 
     const existing = sectorMap.get(sector) || { value: 0, symbols: [] };
     sectorMap.set(sector, {
       value: existing.value + value,
-      symbols: [...existing.symbols, pos.symbol],
+      symbols: [...existing.symbols, ticker],
     });
   }
 
@@ -57,8 +81,8 @@ const getSectorBreakdown = protectedProcedure.query(async ({ ctx }) => {
     .map(([sector, data]) => ({
       sector,
       value: data.value,
-      percentage: totalValue > 0 ? (data.value / totalValue) * 100 : 0,
       symbols: data.symbols,
+      percentage: totalValue > 0 ? (data.value / totalValue) * 100 : 0,
     }))
     .sort((a, b) => b.value - a.value);
 });
@@ -101,8 +125,7 @@ const getRiskMetrics = protectedProcedure.query(async ({ ctx }) => {
   // --- Risk-free rate (10Y Treasury) ---
   let riskFreeRate = 0;
   try {
-    // Fetch "^TNX" (10-year Treasury Note Yield)
-    const yf = new YahooFinance();
+    // Fetch "^TNX" (10-year Treasury Note Yield)\
     const quote = await yf.quote("^TNX");
 
     if (!quote || typeof quote.regularMarketPrice !== "number") {
