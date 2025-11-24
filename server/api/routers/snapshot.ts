@@ -16,6 +16,62 @@ import { eq, desc, and, lte } from "drizzle-orm";
 import { alpaca } from "@/utils/alpaca/clients";
 import { randomUUID } from "crypto";
 
+interface AlpacaCalendarDay {
+  date: string; // "YYYY-MM-DD"
+  open: string; // "HH:MM"
+  close: string; // "HH:MM"
+}
+
+function makeETDate(dateStr: string, timeStr: string): Date {
+  // Construct ET datetime string
+  const et = `${dateStr}T${timeStr}:00 America/New_York`;
+
+  // Convert to UTC Date object
+  return new Date(et);
+}
+
+async function getTradingCalendar(from: Date, to: Date) {
+  const start = from.toISOString().split("T")[0];
+  const end = to.toISOString().split("T")[0];
+
+  const calendar = (await alpaca.getCalendar({
+    start,
+    end,
+  })) as AlpacaCalendarDay[];
+
+  // Convert into fast lookup maps
+  const tradingDays = new Set(calendar.map((c: AlpacaCalendarDay) => c.date)); // YYYY-MM-DD
+  const dayHours = new Map(
+    calendar.map((c: AlpacaCalendarDay) => [
+      c.date,
+      { open: c.open, close: c.close }, // "09:30", "16:00"
+    ]),
+  );
+
+  return { tradingDays, dayHours };
+}
+
+function isDuringMarketHours(
+  ts: Date,
+  dayHoursMap: Map<string, { open: string; close: string }>,
+) {
+  // Convert the UTC snapshot timestamp into ET to determine which day it belongs to
+  const localET = new Date(
+    ts.toLocaleString("en-US", { timeZone: "America/New_York" }),
+  );
+
+  const dateStr = localET.toISOString().split("T")[0];
+  const hours = dayHoursMap.get(dateStr);
+  if (!hours) return false;
+
+  // Convert the ET open/close into real UTC Date objects
+  const openUTC = makeETDate(dateStr, hours.open);
+  const closeUTC = makeETDate(dateStr, hours.close);
+
+  // Compare using UTC timestamps
+  return ts >= openUTC && ts <= closeUTC;
+}
+
 /* HELPER FUNCTIONS */
 function floorToHour(date: Date): Date {
   return new Date(
@@ -141,6 +197,12 @@ const takeHourlySnapshots = protectedProcedure.mutation(async ({ ctx }) => {
   const now = new Date();
   const nowHour = floorToHour(now);
 
+  // Load Alpaca market calendar for a wide window
+  const from = new Date(now);
+  from.setDate(now.getDate() - 400);
+  const to = new Date(now);
+  const { tradingDays, dayHours } = await getTradingCalendar(from, to);
+
   // get last snapshot
   const [latest] = await db
     .select()
@@ -152,9 +214,15 @@ const takeHourlySnapshots = protectedProcedure.mutation(async ({ ctx }) => {
   // 1. No snapshots exist yet
   let cursor = latest ? floorToHour(latest.timestamp) : null;
   if (!cursor) {
-    const nav = await computeNavAtHour(subject.id, nowHour); // create only current hour
-    await insertSnapshot(subject.id, nowHour, nav);
-    return { created: 1 };
+    if (
+      tradingDays.has(nowHour.toISOString().split("T")[0]) &&
+      isDuringMarketHours(nowHour, dayHours)
+    ) {
+      const nav = await computeNavAtHour(subject.id, nowHour);
+      await insertSnapshot(subject.id, nowHour, nav);
+      return { created: 1 };
+    }
+    return { created: 0 };
   }
 
   const FIFTEEN_MIN = 15 * 60 * 1000;
@@ -174,6 +242,12 @@ const takeHourlySnapshots = protectedProcedure.mutation(async ({ ctx }) => {
     if (cursor.getTime() + FIFTEEN_MIN + ONE_MIN + ONE_MIN >= now.getTime()) {
       break;
     }
+
+    // Skip weekends & holidays
+    if (!tradingDays.has(cursor.toISOString().split("T")[0])) continue;
+    // Skip hours outside NYSE trading hours
+    if (!isDuringMarketHours(cursor, dayHours)) continue;
+
     const nav = await computeNavAtHour(subject.id, cursor);
     await insertSnapshot(subject.id, cursor, nav);
     created++;
