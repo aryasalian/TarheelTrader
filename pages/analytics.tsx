@@ -13,6 +13,7 @@ import { Sparkles, TrendingUp, TrendingDown, PieChart, BarChart3, AlertCircle } 
 import { usePortfolioStats } from "@/hooks/usePortfolioStats";
 import { createCaller } from "@/server/api/root";
 import { useSnapshotSync } from "@/hooks/useSnapshot";
+import { usePriceSync } from "@/hooks/usePriceSync";
 
 type AnalyticsPageProps = { user: Subject };
 
@@ -24,18 +25,20 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
     riskAssessment: string;
   } | null>(null);
 
-  const { data: sectorBreakdown = [] } = api.analytics.getSectorBreakdown.useQuery();
-  const { data: stats } = api.transaction.getTransactionStats.useQuery();
   const { data: positions = [] } = api.position.getPositions.useQuery();
-  const pf_stats = usePortfolioStats(positions, {
-    totalRealizedPnl: stats?.totalRealizedPnl ?? 0,
+  usePriceSync(positions.map((p) => p.symbol), {
+    refetchInterval: 15000, // 15 seconds
+    staleTime: 14000
   });
-  
+
   useSnapshotSync();
-  
+  const { data: stats } = api.transaction.getTransactionStats.useQuery();
+  const pf_stats = usePortfolioStats(positions, stats);
+  const { data: sectorBreakdown = [] } = api.analytics.getSectorBreakdown.useQuery();
   const { data: riskMetrics } = api.analytics.getRiskMetrics.useQuery();
-  const { data: portfolioHistory = [] } = api.position.getPortfolioHistory.useQuery({
-    days: 30,
+  const { data: history = { points: [], startValue: 0, endValue: 0 }} = api.position.getPortfolioHistory.useQuery({
+    range: "1M",
+    interval: "daily"
   });
 
   const generateInsightsMutation = api.analytics.generateAIInsights.useQuery(undefined, {
@@ -91,7 +94,7 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
           <CardContent>
             {aiData ? (
               <div className="space-y-4">
-                <div className="rounded-lg border bg-gradient-to-r from-purple-50 to-blue-50 p-6 dark:from-purple-950 dark:to-blue-950">
+                <div className="rounded-lg border bg-linear-to-r from-purple-50 to-blue-50 p-6 dark:from-purple-950 dark:to-blue-950">
                   <h3 className="mb-3 font-semibold">Portfolio Assessment</h3>
                   <p className="text-sm leading-relaxed text-foreground">
                     {aiData.insights}
@@ -186,7 +189,7 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
               <CardDescription>30-day portfolio value</CardDescription>
             </CardHeader>
             <CardContent>
-              <PortfolioChart data={portfolioHistory} />
+              <PortfolioChart data={history.points} interval={"daily"}/>
             </CardContent>
           </Card>
         </div>
@@ -314,7 +317,8 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
                 No risk data available
               </div>
             ) : (
-              <div className="grid gap-6 md:grid-cols-4">
+              <div className="grid gap-6 md:grid-cols-5">
+                {/* Beta */}
                 <div>
                   <p className="text-sm text-muted-foreground">Portfolio Beta</p>
                   <p className="text-2xl font-bold">{riskMetrics.beta.toFixed(2)}</p>
@@ -322,10 +326,12 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
                     {riskMetrics.beta > 1
                       ? "More volatile than market"
                       : riskMetrics.beta < 1
-                        ? "Less volatile than market"
-                        : "Tracks market"}
+                      ? "Less volatile than market"
+                      : "Tracks market"}
                   </p>
                 </div>
+
+                {/* Sharpe */}
                 <div>
                   <p className="text-sm text-muted-foreground">Sharpe Ratio</p>
                   <p className="text-2xl font-bold">{riskMetrics.sharpeRatio.toFixed(2)}</p>
@@ -335,21 +341,36 @@ export default function AnalyticsPage({ user }: AnalyticsPageProps) {
                       : "Room for improvement"}
                   </p>
                 </div>
+
+                {/* Sortino */}
+                <div>
+                  <p className="text-sm text-muted-foreground">Sortino Ratio</p>
+                  <p className="text-2xl font-bold">{riskMetrics.sortinoRatio.toFixed(2)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {riskMetrics.sortinoRatio > 1
+                      ? "Strong downside protection"
+                      : "Downside risk is elevated"}
+                  </p>
+                </div>
+
+                {/* Volatility */}
                 <div>
                   <p className="text-sm text-muted-foreground">Volatility</p>
-                  <p className="text-2xl font-bold">{riskMetrics.volatility.toFixed(1)}%</p>
+                  <p className="text-2xl font-bold">{riskMetrics.volatility.toFixed(2)}%</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {riskMetrics.volatility > 25
                       ? "High volatility"
                       : riskMetrics.volatility > 15
-                        ? "Moderate volatility"
-                        : "Low volatility"}
+                      ? "Moderate volatility"
+                      : "Low volatility"}
                   </p>
                 </div>
+
+                {/* Max Drawdown */}
                 <div>
                   <p className="text-sm text-muted-foreground">Max Drawdown</p>
                   <p className="text-2xl font-bold text-red-600">
-                    -{riskMetrics.maxDrawdown.toFixed(1)}%
+                    -{riskMetrics.maxDrawdown.toFixed(2)}%
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Largest portfolio decline

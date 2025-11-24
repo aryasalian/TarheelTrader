@@ -1,10 +1,16 @@
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { db } from "@/server/db";
-import { position, transaction } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import {
+  hourlyPortfolioSnapshot,
+  position,
+  transaction,
+} from "@/server/db/schema";
+import { eq, asc } from "drizzle-orm";
 import { getMultiplePrices } from "@/utils/alpaca/getPrice";
 import { STOCK_MAP } from "@/data/stocks";
 import OpenAI from "openai";
+import { alpaca } from "@/utils/alpaca/clients";
+import YahooFinance from "yahoo-finance2";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_KEY,
@@ -60,140 +66,118 @@ const getSectorBreakdown = protectedProcedure.query(async ({ ctx }) => {
 // Risk metrics
 const getRiskMetrics = protectedProcedure.query(async ({ ctx }) => {
   const { subject } = ctx;
+  const HOURSPERYEAR = 252 * 6.5;
 
-  // Get portfolio history for calculations
-  const transactions = await db.query.transaction.findMany({
-    where: eq(transaction.userId, subject.id),
-    orderBy: (transaction, { asc }) => [asc(transaction.executedAt)],
-  });
+  // --- 1. Fetch NAV history ---
+  const snaps = await db
+    .select()
+    .from(hourlyPortfolioSnapshot)
+    .where(eq(hourlyPortfolioSnapshot.userId, subject.id))
+    .orderBy(asc(hourlyPortfolioSnapshot.timestamp));
 
-  if (transactions.length === 0) {
+  if (snaps.length < 2) {
     return {
-      beta: 0,
-      sharpeRatio: 0,
       volatility: 0,
+      sharpeRatio: 0,
+      sortinoRatio: 0,
       maxDrawdown: 0,
+      beta: 0,
     };
   }
 
-  // Get current positions
-  const positions = await db.query.position.findMany({
-    where: eq(position.userId, subject.id),
-  });
+  // --- 2. Build NAV series ---
+  const values = snaps.map((s) => Number(s.eohValue));
 
-  // Calculate volatility from stock metadata
-  let avgVolatility = 0;
-  let totalValue = 0;
-
-  const symbols = positions.map((p) => p.symbol);
-  const priceMap = await getMultiplePrices(symbols);
-
-  for (const pos of positions) {
-    const stockMeta = STOCK_MAP[pos.symbol];
-    const currentPrice = priceMap[pos.symbol] ?? parseFloat(pos.avgCost);
-    const value = parseFloat(pos.quantity) * currentPrice;
-    totalValue += value;
-
-    // Map volatility to numeric values
-    const volValue =
-      stockMeta?.volatility === "high"
-        ? 30
-        : stockMeta?.volatility === "medium"
-          ? 20
-          : 10;
-    avgVolatility += (value / (totalValue || 1)) * volValue;
+  // --- 3. Compute annualized log returns ---
+  const returns: number[] = [];
+  for (let i = 1; i < values.length; i++) {
+    returns.push(
+      values[i - 1] != 0
+        ? Math.log(values[i] / values[i - 1]) * HOURSPERYEAR
+        : 0,
+    );
   }
 
-  // Calculate portfolio beta (weighted average based on sector)
-  let beta = 0;
-  for (const pos of positions) {
-    const stockMeta = STOCK_MAP[pos.symbol];
-    const currentPrice = priceMap[pos.symbol] ?? parseFloat(pos.avgCost);
-    const value = parseFloat(pos.quantity) * currentPrice;
-    const weight = totalValue > 0 ? value / totalValue : 0;
+  // --- Risk-free rate (10Y Treasury) ---
+  let riskFreeRate = 0;
+  try {
+    // Fetch "^TNX" (10-year Treasury Note Yield)
+    const yf = new YahooFinance();
+    const quote = await yf.quote("^TNX");
 
-    // Assign beta based on sector and volatility
-    const sectorBeta =
-      stockMeta?.sector === "technology"
-        ? 1.3
-        : stockMeta?.sector === "finance"
-          ? 1.1
-          : stockMeta?.sector === "healthcare"
-            ? 0.9
-            : 1.0;
-    const volMultiplier =
-      stockMeta?.volatility === "high"
-        ? 1.2
-        : stockMeta?.volatility === "low"
-          ? 0.8
-          : 1.0;
+    if (!quote || typeof quote.regularMarketPrice !== "number") {
+      throw new Error("Invalid treasury yield response");
+    }
 
-    beta += weight * sectorBeta * volMultiplier;
+    // TNX returns yield * 10 (e.g., 45.50 = 4.55%)
+    riskFreeRate = quote.regularMarketPrice / 10;
+  } catch (e) {
+    console.error("Failed to fetch risk-free rate:", e);
+    riskFreeRate = 0.04; // fallback = 4% annualized assumed
   }
 
-  // Calculate returns for Sharpe ratio
-  const totalCostBasis = positions.reduce(
-    (sum, pos) => sum + parseFloat(pos.quantity) * parseFloat(pos.avgCost),
-    0,
+  // --- 4. Volatility ---
+  const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+  const mean2 = returns.reduce((a, b) => a + b * b, 0) / returns.length;
+  const variance = mean2 - mean * mean; // E[r²] − (E[r])²
+  const volatility = Math.sqrt(Math.max(variance, 0));
+
+  // --- 5. Sharpe & Sortino ratio (downside deviation via mean-square identity) ---
+  const sharpeRatio = volatility === 0 ? 0 : (mean - riskFreeRate) / volatility;
+  const neg = returns.filter((r) => r < 0);
+  let sortinoRatio = 0;
+  if (neg.length > 0) {
+    const m2_down = neg.reduce((a, b) => a + b * b, 0) / neg.length;
+    const downsideDev = Math.sqrt(m2_down);
+    sortinoRatio = downsideDev === 0 ? 0 : (mean - riskFreeRate) / downsideDev;
+  }
+
+  // --- 6. Max drawdown ---
+  let peak = values[0];
+  let maxDD = 0;
+  for (const v of values) {
+    peak = Math.max(peak, v);
+    const dd = (peak - v) / peak;
+    if (dd > maxDD) maxDD = dd;
+  }
+
+  // --- 7. Beta using SPY benchmark (hourly) ---
+  // Fetch benchmark prices with Alpaca
+  const bars = alpaca.getBarsV2(
+    "SPY",
+    {
+      start: snaps[0].timestamp.toISOString(),
+      end: snaps[snaps.length - 1].timestamp.toISOString(),
+      timeframe: "1Hour",
+    },
+    alpaca.configuration,
   );
-  const totalReturn =
-    totalValue > 0 && totalCostBasis > 0
-      ? (totalValue - totalCostBasis) / totalCostBasis
-      : 0;
-
-  // Sharpe ratio (simplified: return / volatility)
-  const sharpeRatio =
-    avgVolatility > 0 ? (totalReturn * 100) / (avgVolatility / 100) : 0;
-
-  // Calculate max drawdown from transaction history
-  let maxDrawdown = 0;
-  let peakValue = 0;
-  const positionsMap = new Map<string, { quantity: number; avgCost: number }>();
-
-  for (const txn of transactions) {
-    const symbol = txn.symbol;
-    const qty = parseFloat(txn.quantity);
-    const price = parseFloat(txn.price);
-    const existing = positionsMap.get(symbol) || { quantity: 0, avgCost: 0 };
-
-    if (txn.action === "buy") {
-      const newQty = existing.quantity + qty;
-      const newAvg =
-        newQty > 0
-          ? (existing.quantity * existing.avgCost + qty * price) / newQty
-          : price;
-      positionsMap.set(symbol, { quantity: newQty, avgCost: newAvg });
-    } else {
-      const newQty = existing.quantity - qty;
-      if (newQty > 0) {
-        positionsMap.set(symbol, {
-          quantity: newQty,
-          avgCost: existing.avgCost,
-        });
-      } else {
-        positionsMap.delete(symbol);
-      }
-    }
-
-    // Calculate portfolio value at this point
-    let currentValue = 0;
-    for (const [sym, pos] of positionsMap.entries()) {
-      currentValue += pos.quantity * pos.avgCost;
-    }
-
-    if (currentValue > peakValue) {
-      peakValue = currentValue;
-    } else if (peakValue > 0) {
-      const drawdown = ((peakValue - currentValue) / peakValue) * 100;
-      maxDrawdown = Math.max(maxDrawdown, drawdown);
-    }
+  const spyPrices: number[] = [];
+  for await (const bar of bars) {
+    spyPrices.push(bar.ClosePrice);
   }
+  const spyReturns: number[] = [];
+  for (let i = 1; i < spyPrices.length; i++) {
+    spyReturns.push(Math.log(spyPrices[i] / spyPrices[i - 1]) * HOURSPERYEAR);
+  }
+
+  // match lengths
+  const n = Math.min(spyReturns.length, returns.length);
+  const rp = returns.slice(0, n); // Portfolio returns
+  const rb = spyReturns.slice(0, n); // Beta(SPY) returns
+  const meanRb = rb.reduce((a, b) => a + b, 0) / n;
+  const meanRb2 = rb.reduce((a, b) => a + b * b, 0) / n;
+  const cov =
+    rp.reduce((sum, r, i) => sum + (r - mean) * (rb[i] - meanRb), 0) / (n - 1);
+  const varRb = meanRb2 - meanRb * meanRb;
+  const beta = varRb === 0 ? 0 : cov / varRb;
 
   return {
-    beta: Math.round(beta * 100) / 100,
-    sharpeRatio: Math.round(sharpeRatio * 100) / 100,
-    volatility: Math.round(avgVolatility * 10) / 10,
-    maxDrawdown: Math.round(maxDrawdown * 10) / 10,
+    volatility,
+    sharpeRatio,
+    sortinoRatio,
+    maxDrawdown: maxDD * 100,
+    beta,
   };
 });
 
