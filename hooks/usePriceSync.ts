@@ -1,6 +1,17 @@
 import { useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/utils/trpc/api";
 import { usePriceStore } from "@/store/priceStore";
+
+const CHUNK_SIZE = 50;
+
+function chunkSymbols(symbols: string[]) {
+  const chunks: string[][] = [];
+  for (let i = 0; i < symbols.length; i += CHUNK_SIZE) {
+    chunks.push(symbols.slice(i, i + CHUNK_SIZE));
+  }
+  return chunks;
+}
 
 export function usePriceSync(
   symbols: string[],
@@ -45,15 +56,22 @@ export function usePriceSync(
   // Determine if THIS tab is leader
   const isLeader = isVisible && localStorage.getItem(LEADER_KEY) === TAB_ID;
 
-  const { data } = api.position.getStockPrices.useQuery(
-    { symbols: normalizedSymbols },
-    {
-      // React-query options DO NOT WORK, so keep these minimal
-      enabled: isLeader && normalizedSymbols.length > 0,
-      refetchInterval: isLeader ? (options?.refetchInterval ?? 15000) : false, // 15 secs by default and if not Leader then no interval needed since tab doesn't poll
-      staleTime: options?.staleTime ?? 14000,
+  const utils = api.useUtils();
+  const { data } = useQuery({
+    queryKey: ["price-sync", normalizedSymbols],
+    enabled: isLeader && normalizedSymbols.length > 0,
+    refetchInterval: isLeader ? (options?.refetchInterval ?? 15000) : false,
+    staleTime: options?.staleTime ?? 14000,
+    queryFn: async () => {
+      const symbolChunks = chunkSymbols(normalizedSymbols);
+      const responses = await Promise.all(
+        symbolChunks.map((chunk) =>
+          utils.position.getStockPrices.fetch({ symbols: chunk }),
+        ),
+      );
+      return responses.flat();
     },
-  );
+  });
 
   // ALL TABS: update Zustand when new data arrives (leader OR broadcast)
   useEffect(() => {

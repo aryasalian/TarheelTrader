@@ -10,17 +10,24 @@ import { Slider } from "@/components/ui/slider";
 import { Star, Filter, TrendingUp } from "lucide-react";
 import { Navigation } from "@/components/navigation";
 import { usePriceStore } from "@/store/priceStore";
-import { STOCK_UNIVERSE, MAX_STOCK_PRICE, type StockMeta } from "@/data/stocks";
 import { usePriceSync } from "@/hooks/usePriceSync";
 
 type WatchlistEntry = RouterOutputs["watchlist"]["getWatchlist"][number];
 
-type ScreenerStock = RouterOutputs["market"]["getScreenerStocks"][number];
-type StockRowData = StockMeta & {
-  price: number;
-  changePercent: number;
+type ScreenerStock = RouterOutputs["market"]["getScreenerStocks"]["items"][number];
+type StockRowData = ScreenerStock & {
   isFavorite: boolean;
-  isEstimate: boolean;
+};
+
+const PRICE_RANGE_MAX = 1000;
+
+const formatSectorLabel = (sector?: string | null) => {
+  if (!sector) return "Unknown";
+  return sector
+    .toLowerCase()
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 };
 
 function WatchlistItemRow({
@@ -99,11 +106,6 @@ function ScreenerResultRow({ stock, onToggleFavorite }: { stock: StockRowData; o
         {stock.isEstimate && <span className="ml-1 text-xs text-muted-foreground">(est)</span>}
       </TableCell>
       <TableCell>
-        <span className={stock.changePercent >= 0 ? "text-green-600" : "text-red-600"}>
-          {stock.changePercent >= 0 ? "+" : ""}{stock.changePercent.toFixed(2)}%
-        </span>
-      </TableCell>
-      <TableCell>
         <Button
           variant="ghost"
           size="sm"
@@ -122,28 +124,68 @@ export default function ScreenerPage() {
   const { data: watchlist, refetch: refetchWatchlist } = api.watchlist.getWatchlist.useQuery();
   const addToWatchlist = api.watchlist.addToWatchlist.useMutation();
   const removeFromWatchlist = api.watchlist.removeFromWatchlist.useMutation();
-  const priceMap = usePriceStore((state) => state.prices);
 
   const [sector, setSector] = useState("all");
-  const [volatility, setVolatility] = useState("all");
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, MAX_STOCK_PRICE]);
+  const [volatility, setVolatility] = useState<"all" | "low" | "medium" | "high">("all");
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, PRICE_RANGE_MAX]);
+  const [page, setPage] = useState(1);
 
-  const watchlistSymbols = useMemo(
-    () => (watchlist ? watchlist.map((item) => item.symbol.toUpperCase()) : []),
-    [watchlist],
-  );
+  const queryInput = {
+    page,
+    limit: 50,
+    sector: sector === "all" ? undefined : sector,
+    volatility: volatility === "all" ? undefined : volatility,
+    minPrice: priceRange[0],
+    maxPrice: priceRange[1],
+  } as const;
 
-  const symbolUniverse = useMemo(() => {
-    const base = STOCK_UNIVERSE.map((stock) => stock.ticker);
-    return Array.from(new Set([...base, ...watchlistSymbols])).sort();
-  }, [watchlistSymbols]);
+  const { data, isLoading, isFetching } = api.market.getScreenerStocks.useQuery(queryInput, {
+    placeholderData: (previous) => previous,
+    staleTime: 1000 * 15,
+  });
 
-  usePriceSync(symbolUniverse);
+  useEffect(() => {
+    setPage(1);
+  }, [sector, volatility, priceRange[0], priceRange[1]]);
+
+    const watchlistSymbols = useMemo(
+      () => (watchlist ? watchlist.map((item) => item.symbol.toUpperCase()) : []),
+      [watchlist],
+    );
+
+    usePriceSync(watchlistSymbols);
+
+    const totalResults = data?.total ?? 0;
+    const totalPages = data?.totalPages ?? 0;
+    const safeTotalPages = totalPages > 0 ? totalPages : 1;
+    const currentPage = Math.min(page, safeTotalPages);
+
+    const pageNumbers = useMemo(() => {
+      const windowSize = 5;
+      const start = Math.max(1, Math.min(currentPage - 2, safeTotalPages - windowSize + 1));
+      const end = Math.min(safeTotalPages, start + windowSize - 1);
+      return Array.from({ length: end - start + 1 }, (_, idx) => start + idx);
+    }, [currentPage, safeTotalPages]);
+
+    const paginatedStocks = useMemo<StockRowData[]>(() => {
+      const favorites = new Set(watchlistSymbols);
+      return (data?.items ?? []).map((stock) => ({
+        ...stock,
+        isFavorite: favorites.has(stock.ticker),
+      }));
+    }, [data?.items, watchlistSymbols]);
+
+    const handlePageChange = (nextPage: number) => {
+      if (nextPage < 1) return;
+      if (totalPages && nextPage > totalPages) return;
+      setPage(nextPage);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
 
   const handleResetFilters = () => {
     setSector("all");
     setVolatility("all");
-    setPriceRange([0, MAX_STOCK_PRICE]);
+    setPriceRange([0, PRICE_RANGE_MAX]);
   };
 
   const handlePriceRangeChange = (value: number[]) => {
@@ -152,32 +194,6 @@ export default function ScreenerPage() {
       setPriceRange([Math.min(first, second), Math.max(first, second)]);
     }
   };
-
-  const filteredStocks = useMemo<StockRowData[]>(() => {
-    const favorites = new Set(watchlistSymbols);
-    return STOCK_UNIVERSE.filter((stock) => {
-      const priceRecord = priceMap[stock.ticker];
-      const currentPrice = priceRecord?.price ?? stock.basePrice;
-      const matchesSector = sector === "all" || stock.sector === sector;
-      const matchesVolatility = volatility === "all" || stock.volatility === volatility;
-      const matchesPrice = currentPrice >= priceRange[0] && currentPrice <= priceRange[1];
-      return matchesSector && matchesVolatility && matchesPrice;
-    }).map((stock) => {
-      const priceRecord = priceMap[stock.ticker];
-      const currentPrice = priceRecord?.price ?? stock.basePrice;
-      const isEstimate = priceRecord ? !priceRecord.success : true;
-      const changePercent = stock.basePrice > 0
-        ? ((currentPrice - stock.basePrice) / stock.basePrice) * 100
-        : 0;
-      return {
-        ...stock,
-        price: currentPrice,
-        changePercent,
-        isFavorite: favorites.has(stock.ticker),
-        isEstimate,
-      };
-    });
-  }, [priceMap, watchlistSymbols, sector, volatility, priceRange]);
 
   const handleToggleFavorite = async (ticker: string, isFavorite: boolean) => {
     try {
@@ -249,7 +265,7 @@ export default function ScreenerPage() {
                   value={priceRange}
                   onValueChange={handlePriceRangeChange}
                   min={0}
-                  max={MAX_STOCK_PRICE}
+                  max={PRICE_RANGE_MAX}
                   step={10}
                   className="w-full"
                 />
@@ -257,7 +273,12 @@ export default function ScreenerPage() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Volatility</label>
-                <Select value={volatility} onValueChange={setVolatility}>
+                <Select
+                  value={volatility}
+                  onValueChange={(value) =>
+                    setVolatility(value as "all" | "low" | "medium" | "high")
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="All Levels" />
                   </SelectTrigger>
@@ -322,27 +343,66 @@ export default function ScreenerPage() {
         <Card>
           <CardHeader>
             <CardTitle>Results</CardTitle>
-            <CardDescription>{filteredStocks.length} stocks match your criteria</CardDescription>
+            <CardDescription>{totalResults} stocks match your criteria</CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm text-muted-foreground">
+                Page {currentPage} of {safeTotalPages}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage <= 1 || isFetching}
+                >
+                  ← Prev
+                </Button>
+                {pageNumbers.map((pageNumber) => (
+                  <Button
+                    key={pageNumber}
+                    variant={pageNumber === currentPage ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handlePageChange(pageNumber)}
+                    disabled={isFetching && pageNumber === currentPage}
+                  >
+                    {pageNumber}
+                  </Button>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={totalPages === 0 || currentPage >= safeTotalPages || isFetching}
+                >
+                  Next →
+                </Button>
+              </div>
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Ticker</TableHead>
                   <TableHead>Price</TableHead>
-                  <TableHead>Change</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredStocks.length === 0 ? (
+                {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
+                      Loading stocks...
+                    </TableCell>
+                  </TableRow>
+                ) : paginatedStocks.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
                       No stocks match your current filters.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredStocks.map((stock) => (
+                  paginatedStocks.map((stock) => (
                     <ScreenerResultRow
                       key={stock.ticker}
                       stock={stock}
