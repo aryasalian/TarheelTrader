@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
-import { LogOut, Home, Filter, PieChart, BarChart3 } from "lucide-react";
+import { LogOut, Home, Filter, PieChart, BarChart3, Settings } from "lucide-react";
 import { createSupabaseComponentClient } from "@/utils/supabase/clients/component";
 import { api } from "@/utils/trpc/api";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -66,6 +66,15 @@ export function Navigation() {
                 >
                   <BarChart3 className="h-4 w-4" />
                   Analytics
+                </Button>
+              </Link>
+              <Link href="/settings">
+                <Button
+                  variant={isActive("/settings") ? "default" : "ghost"}
+                  className="gap-2"
+                >
+                  <Settings className="h-4 w-4" />
+                  Settings
                 </Button>
               </Link>
             </div>
