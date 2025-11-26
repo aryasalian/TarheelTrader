@@ -17,7 +17,7 @@ import { usePriceSync } from "@/hooks/usePriceSync";
 
 type AnalyticsPageProps = { user: Subject };
 
-export default function AnalyticsPage({ user }: AnalyticsPageProps) {
+export default function AnalyticsPage({ }: AnalyticsPageProps) {
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [aiData, setAiData] = useState<{
     insights: string;

@@ -21,15 +21,6 @@ type StockRowData = ScreenerStock & {
 
 const PRICE_RANGE_MAX = 1000;
 
-const formatSectorLabel = (sector?: string | null) => {
-  if (!sector) return "Unknown";
-  return sector
-    .toLowerCase()
-    .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-};
-
 function WatchlistItemRow({
   item,
   onRemove,
@@ -144,9 +135,12 @@ export default function ScreenerPage() {
     staleTime: 1000 * 15,
   });
 
+  const minPrice = priceRange[0];
+  const maxPrice = priceRange[1];
+
   useEffect(() => {
     setPage(1);
-  }, [sector, volatility, priceRange[0], priceRange[1]]);
+  }, [sector, volatility, minPrice, maxPrice]);
 
     const watchlistSymbols = useMemo(
       () => (watchlist ? watchlist.map((item) => item.symbol.toUpperCase()) : []),

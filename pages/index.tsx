@@ -11,7 +11,7 @@ import { PieChart, Filter, BarChart3 } from "lucide-react";
 import { Navigation } from "@/components/navigation";
 
 type HomePageProps = { user: Subject };
-export default function HomePage({ user }: HomePageProps) {
+export default function HomePage({ }: HomePageProps) {
   
   return (
     <div className="min-h-screen bg-background">

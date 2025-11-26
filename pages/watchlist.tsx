@@ -1,4 +1,3 @@
-import { Subject } from "@/server/models/auth";
 import { createSupabaseServerClient } from "@/utils/supabase/clients/server-props";
 import { GetServerSidePropsContext } from "next";
 import { api } from "@/utils/trpc/api";
@@ -7,13 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Star, Plus } from "lucide-react";
 import { Navigation } from "@/components/navigation";
-
-type WatchlistPageProps = { user: Subject };
 
 interface StockPrice {
   symbol: string;
@@ -23,7 +19,7 @@ interface StockPrice {
   marketCap: string;
 }
 
-export default function WatchlistPage({ user }: WatchlistPageProps) {
+export default function WatchlistPage() {
   const { data: watchlist, refetch } = api.watchlist.getWatchlist.useQuery();
   const removeFromWatchlist = api.watchlist.removeFromWatchlist.useMutation();
   const addToWatchlist = api.watchlist.addToWatchlist.useMutation();
@@ -55,7 +51,7 @@ export default function WatchlistPage({ user }: WatchlistPageProps) {
         setNewSymbol("");
         setIsDialogOpen(false);
         refetch();
-      } catch (error) {
+      } catch {
         window.alert("Failed to add ticker");
       }
     }
@@ -65,7 +61,7 @@ export default function WatchlistPage({ user }: WatchlistPageProps) {
     try {
       await removeFromWatchlist.mutateAsync({ id });
       refetch();
-    } catch (error) {
+    } catch {
       window.alert("Failed to remove ticker");
     }
   };
@@ -123,7 +119,7 @@ export default function WatchlistPage({ user }: WatchlistPageProps) {
             {!watchlist || watchlist.length === 0 ? (
               <div className="py-12 text-center">
                 <p className="text-muted-foreground">No stocks in your watchlist yet.</p>
-                <p className="mt-2 text-sm text-muted-foreground">Click "Add Ticker" to get started.</p>
+                <p className="mt-2 text-sm text-muted-foreground">Click &quot;Add Ticker&quot; to get started.</p>
               </div>
             ) : (
               <Table>

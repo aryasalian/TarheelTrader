@@ -129,7 +129,7 @@ export const marketApiRouter = createTRPCRouter({
         return {
           ticker: stock.symbol,
           name: stock.name,
-          sector: stock.sector ?? null,
+          sector: (stock.sector ?? null) as string | null,
           industry: stock.industry ?? null,
           exchange: null,
           marketCap: stock.market_cap ?? null,
@@ -154,12 +154,12 @@ export const marketApiRouter = createTRPCRouter({
           ) {
             return false;
           }
-          if (
-            input.sector &&
-            input.sector !== "all" &&
-            stock.sector?.toLowerCase() !== input.sector.toLowerCase()
-          ) {
-            return false;
+          if (input.sector && input.sector !== "all") {
+            const stockSector = stock.sector?.toLowerCase();
+            const filterSector = input.sector.toLowerCase();
+            if (!stockSector || stockSector !== filterSector) {
+              return false;
+            }
           }
           if (input.volatility && stock.volatility !== input.volatility) {
             return false;
