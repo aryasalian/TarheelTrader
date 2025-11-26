@@ -9,7 +9,10 @@ const METADATA_CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutes
 const MAX_CONCURRENT_REQUESTS = 8;
 
 const yahooFinance = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
-const metadataCache = new Map<string, { data: YahooMetadata; timestamp: number }>();
+const metadataCache = new Map<
+  string,
+  { data: YahooMetadata; timestamp: number }
+>();
 const inflightRequests = new Map<string, Promise<YahooMetadata>>();
 
 function normalizeSymbol(symbol: string) {
@@ -48,17 +51,19 @@ async function fetchSingleSymbol(symbol: string): Promise<YahooMetadata> {
       metadataCache.set(normalized, { data: metadata, timestamp: now });
       return metadata;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const isQuoteNotFound = errorMessage.includes("Quote not found") || 
-                              errorMessage.includes("No fundamentals data");
-      
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const isQuoteNotFound =
+        errorMessage.includes("Quote not found") ||
+        errorMessage.includes("No fundamentals data");
+
       if (!isQuoteNotFound) {
         console.warn(
           `Yahoo Finance metadata fetch failed for ${normalized} (${yahooSymbol}):`,
-          errorMessage
+          errorMessage,
         );
       }
-      
+
       const fallback: YahooMetadata = { sector: null, beta: null };
       metadataCache.set(normalized, { data: fallback, timestamp: now });
       return fallback;
@@ -72,11 +77,16 @@ async function fetchSingleSymbol(symbol: string): Promise<YahooMetadata> {
 }
 
 export async function fetchYahooMetadata(symbols: string[]) {
-  const uniqueSymbols = Array.from(new Set(symbols.map(normalizeSymbol))).filter(Boolean);
+  const uniqueSymbols = Array.from(
+    new Set(symbols.map(normalizeSymbol)),
+  ).filter(Boolean);
   const result: Record<string, YahooMetadata> = {};
 
   let cursor = 0;
-  const workerCount = Math.min(MAX_CONCURRENT_REQUESTS, uniqueSymbols.length || 1);
+  const workerCount = Math.min(
+    MAX_CONCURRENT_REQUESTS,
+    uniqueSymbols.length || 1,
+  );
 
   const workers = Array.from({ length: workerCount }, async () => {
     while (cursor < uniqueSymbols.length) {
@@ -92,7 +102,9 @@ export async function fetchYahooMetadata(symbols: string[]) {
   return result;
 }
 
-export function getYahooMetadataFromCache(symbol: string): YahooMetadata | null {
+export function getYahooMetadataFromCache(
+  symbol: string,
+): YahooMetadata | null {
   const normalized = normalizeSymbol(symbol);
   const cached = metadataCache.get(normalized);
   if (!cached) return null;
@@ -101,4 +113,19 @@ export function getYahooMetadataFromCache(symbol: string): YahooMetadata | null 
     return null;
   }
   return cached.data;
+}
+
+export async function getTenYearYield(): Promise<number> {
+  try {
+    const quote = await yahooFinance.quote("^TNX");
+
+    // TNX gives yields *10 — e.g., 45.50 → 4.55%
+    const raw = quote?.regularMarketPrice;
+    if (typeof raw !== "number") return 0.04; // fallback 4%
+
+    return raw / 10 / 100; // convert to decimal yield
+  } catch (err) {
+    console.error("Failed to fetch ^TNX:", err);
+    return 0.04; // fallback rate
+  }
 }
