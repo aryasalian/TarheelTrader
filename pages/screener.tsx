@@ -11,6 +11,7 @@ import { Star, Filter, TrendingUp } from "lucide-react";
 import { Navigation } from "@/components/navigation";
 import { usePriceStore } from "@/store/priceStore";
 import { usePriceSync } from "@/hooks/usePriceSync";
+import { Combobox } from "@/components/ui/combobox";
 
 type WatchlistEntry = RouterOutputs["watchlist"]["getWatchlist"][number];
 
@@ -89,12 +90,31 @@ function WatchlistItemRow({
 }
 
 function ScreenerResultRow({ stock, onToggleFavorite }: { stock: StockRowData; onToggleFavorite: (ticker: string, isFavorite: boolean) => void }) {
+  const getVolatilityBadgeClass = (vol: string) => {
+    switch (vol) {
+      case "low":
+        return "bg-green-100 text-green-800";
+      case "medium":
+        return "bg-yellow-100 text-yellow-800";
+      case "high":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
   return (
     <TableRow>
       <TableCell className="font-medium">{stock.ticker}</TableCell>
       <TableCell>
         ${stock.price.toFixed(2)}
         {stock.isEstimate && <span className="ml-1 text-xs text-muted-foreground">(est)</span>}
+      </TableCell>
+      <TableCell>{stock.sector || "—"}</TableCell>
+      <TableCell>
+        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getVolatilityBadgeClass(stock.volatility)}`}>
+          {stock.volatility}
+        </span>
       </TableCell>
       <TableCell>
         <Button
@@ -113,6 +133,7 @@ function ScreenerResultRow({ stock, onToggleFavorite }: { stock: StockRowData; o
 
 export default function ScreenerPage() {
   const { data: watchlist, refetch: refetchWatchlist } = api.watchlist.getWatchlist.useQuery();
+  const { data: availableSectors } = api.market.getAvailableSectors.useQuery();
   const addToWatchlist = api.watchlist.addToWatchlist.useMutation();
   const removeFromWatchlist = api.watchlist.removeFromWatchlist.useMutation();
 
@@ -237,18 +258,14 @@ export default function ScreenerPage() {
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Sector</label>
-                <Select value={sector} onValueChange={setSector}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Sectors" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Sectors</SelectItem>
-                    <SelectItem value="technology">Technology</SelectItem>
-                    <SelectItem value="healthcare">Healthcare</SelectItem>
-                    <SelectItem value="finance">Finance</SelectItem>
-                    <SelectItem value="energy">Energy</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Combobox
+                  options={availableSectors ?? []}
+                  value={sector}
+                  onChange={setSector}
+                  placeholder="All Sectors"
+                  searchPlaceholder="Search sectors..."
+                  emptyText="No sectors found."
+                />
               </div>
 
               <div className="space-y-2">
@@ -273,7 +290,7 @@ export default function ScreenerPage() {
                     setVolatility(value as "all" | "low" | "medium" | "high")
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="All Levels" />
                   </SelectTrigger>
                   <SelectContent>
@@ -379,19 +396,21 @@ export default function ScreenerPage() {
                 <TableRow>
                   <TableHead>Ticker</TableHead>
                   <TableHead>Price</TableHead>
+                  <TableHead>Sector</TableHead>
+                  <TableHead>Volatility</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                       Loading stocks...
                     </TableCell>
                   </TableRow>
                 ) : paginatedStocks.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                       No stocks match your current filters.
                     </TableCell>
                   </TableRow>
