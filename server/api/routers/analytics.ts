@@ -8,17 +8,13 @@ import {
 import { eq, asc } from "drizzle-orm";
 import { getMultiplePrices } from "@/utils/alpaca/getPrice";
 import { STOCK_MAP } from "@/data/stocks";
+import { fetchYahooMetadata } from "@/utils/yahoo/metadata";
 import OpenAI from "openai";
 import { alpaca } from "@/utils/alpaca/clients";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_KEY,
 });
-
-async function getSectorForSymbol(_symbol: string): Promise<string> {
-  // Yahoo Finance dependency removed - return placeholder
-  return "Other";
-}
 
 // Sector breakdown
 const getSectorBreakdown = protectedProcedure.query(async ({ ctx }) => {
@@ -35,22 +31,16 @@ const getSectorBreakdown = protectedProcedure.query(async ({ ctx }) => {
   const symbols = positions.map((p) => p.symbol);
   const priceMap = await getMultiplePrices(symbols);
 
-  // fetch sectors for each symbol (parallelized)
-  const sectorMap = new Map<string, { value: number; symbols: string[] }>();
-  const sectorCache = new Map<string, string>(); // avoid duplicates
+  // Fetch Yahoo metadata for sector info
+  const yahooMetadata = await fetchYahooMetadata(symbols);
 
+  const sectorMap = new Map<string, { value: number; symbols: string[] }>();
   let totalValue = 0;
 
   for (const pos of positions) {
     const ticker = pos.symbol;
-
-    let sector: string;
-    if (sectorCache.has(ticker)) {
-      sector = sectorCache.get(ticker)!;
-    } else {
-      sector = await getSectorForSymbol(ticker);
-      sectorCache.set(ticker, sector);
-    }
+    const metadata = yahooMetadata[ticker.toUpperCase()];
+    const sector = metadata?.sector ?? STOCK_MAP[ticker]?.sector ?? "Other";
 
     const price = priceMap[ticker] ?? parseFloat(pos.avgCost);
     const value = parseFloat(pos.quantity) * price;

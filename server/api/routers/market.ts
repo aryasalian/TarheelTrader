@@ -5,6 +5,7 @@ import {
 } from "@/utils/alpaca/screener";
 import crypto from "node:crypto";
 import { getLatestPrice } from "@/utils/alpaca/getPrice";
+import { fetchYahooMetadata } from "@/utils/yahoo/metadata";
 import { z } from "zod";
 
 const ScreenerStock = z.object({
@@ -25,7 +26,13 @@ type ScreenerStock = z.infer<typeof ScreenerStock>;
 
 const classifyVolatility = (
   changePercent: number,
+  beta?: number | null,
 ): ScreenerStock["volatility"] => {
+  if (typeof beta === "number" && !Number.isNaN(beta)) {
+    if (beta >= 1.3) return "high";
+    if (beta >= 0.8) return "medium";
+    return "low";
+  }
   const abs = Math.abs(changePercent);
   if (abs >= 3) return "high";
   if (abs >= 1.5) return "medium";
@@ -42,7 +49,6 @@ type ScreenerCacheEntry = {
 };
 
 const screenerCache = new Map<string, ScreenerCacheEntry>();
-
 function buildCacheKey(input: {
   sector?: string;
   volatility?: ScreenerStock["volatility"];
@@ -63,6 +69,37 @@ function buildCacheKey(input: {
 }
 
 export const marketApiRouter = createTRPCRouter({
+  getAvailableSectors: protectedProcedure.query(async () => {
+    const cacheKey = "available-sectors";
+    const cached = screenerCache.get(cacheKey);
+    const now = Date.now();
+
+    if (cached && now - cached.timestamp < SCREENER_CACHE_TTL_MS * 10) {
+      return (cached.items as unknown as string[]).sort();
+    }
+
+    const rawStocks = await fetchTopScreenerStocks(500);
+    const symbols = rawStocks.map((stock) => stock.symbol);
+    const yahooMetadata = await fetchYahooMetadata(symbols);
+
+    const sectorsSet = new Set<string>();
+    rawStocks.forEach((stock) => {
+      const metadata = yahooMetadata[stock.symbol.toUpperCase()];
+      const sector = metadata?.sector ?? stock.sector;
+      if (sector && sector.trim()) {
+        sectorsSet.add(sector.trim());
+      }
+    });
+
+    const sectors = Array.from(sectorsSet).sort();
+    screenerCache.set(cacheKey, {
+      timestamp: now,
+      items: sectors as unknown as ScreenerStock[],
+    });
+
+    return sectors;
+  }),
+
   getScreenerStocks: protectedProcedure
     .input(
       z.object({
@@ -100,9 +137,15 @@ export const marketApiRouter = createTRPCRouter({
       const rawStocks = await fetchTopScreenerStocks(500);
       const symbols = rawStocks.map((stock) => stock.symbol);
       const snapshots = await fetchSnapshots(symbols);
+      const yahooMetadata = await fetchYahooMetadata(symbols);
 
       const processedStocks = rawStocks.map((stock) => {
-        const snapshot = snapshots[stock.symbol] ?? null;
+        const symbol = stock.symbol;
+        const snapshot = snapshots[symbol] ?? null;
+        const metadata = yahooMetadata[symbol.toUpperCase()] ?? {
+          sector: null,
+          beta: null,
+        };
         const latestPrice =
           snapshot?.latestTrade?.p ??
           snapshot?.minuteBar?.c ??
@@ -127,16 +170,16 @@ export const marketApiRouter = createTRPCRouter({
           null;
 
         return {
-          ticker: stock.symbol,
+          ticker: symbol,
           name: stock.name,
-          sector: (stock.sector ?? null) as string | null,
+          sector: metadata.sector ?? (stock.sector ?? null),
           industry: stock.industry ?? null,
           exchange: null,
           marketCap: stock.market_cap ?? null,
           volume,
           price: latestPrice,
           changePercent,
-          volatility: classifyVolatility(changePercent),
+          volatility: classifyVolatility(changePercent, metadata.beta),
           isEstimate: !Boolean(
             snapshot?.latestTrade?.p ||
               snapshot?.minuteBar?.c ||
@@ -155,9 +198,9 @@ export const marketApiRouter = createTRPCRouter({
             return false;
           }
           if (input.sector && input.sector !== "all") {
-            const stockSector = stock.sector?.toLowerCase();
-            const filterSector = input.sector.toLowerCase();
-            if (!stockSector || stockSector !== filterSector) {
+            const stockSector = stock.sector?.trim().toLowerCase();
+            const filterSector = input.sector.trim().toLowerCase();
+            if (!stockSector || !stockSector.includes(filterSector)) {
               return false;
             }
           }

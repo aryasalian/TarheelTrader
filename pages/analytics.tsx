@@ -261,7 +261,9 @@ export default function AnalyticsPage({ }: AnalyticsPageProps) {
             <CardContent>
               {worstPerformers.length === 0 ? (
                 <div className="flex h-32 items-center justify-center text-muted-foreground">
-                  No positions yet
+                  {positions.length === 0 
+                    ? "No positions yet" 
+                    : "No underperforming positions"}
                 </div>
               ) : (
                 <Table>
