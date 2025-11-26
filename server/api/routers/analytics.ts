@@ -10,27 +10,14 @@ import { getMultiplePrices } from "@/utils/alpaca/getPrice";
 import { STOCK_MAP } from "@/data/stocks";
 import OpenAI from "openai";
 import { alpaca } from "@/utils/alpaca/clients";
-import YahooFinance from "yahoo-finance2";
-
-const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_KEY,
 });
 
-async function getSectorForSymbol(symbol: string): Promise<string> {
-  try {
-    const data = await yf.quoteSummary(symbol, {
-      modules: ["summaryProfile"],
-    });
-
-    const sector = data?.summaryProfile?.sector;
-    if (!sector) return "Other";
-    return sector;
-  } catch (err) {
-    console.error("Failed sector lookup for:", symbol, err);
-    return "Other";
-  }
+async function getSectorForSymbol(_symbol: string): Promise<string> {
+  // Yahoo Finance dependency removed - return placeholder
+  return "Other";
 }
 
 // Sector breakdown
@@ -123,17 +110,10 @@ const getRiskMetrics = protectedProcedure.query(async ({ ctx }) => {
   }
 
   // --- Risk-free rate (10Y Treasury) ---
-  let riskFreeRate = 0;
+  let riskFreeRate = 0.04; // default 4% annualized
   try {
-    // Fetch "^TNX" (10-year Treasury Note Yield)\
-    const quote = await yf.quote("^TNX");
-
-    if (!quote || typeof quote.regularMarketPrice !== "number") {
-      throw new Error("Invalid treasury yield response");
-    }
-
-    // TNX returns yield * 10 (e.g., 45.50 = 4.55%)
-    riskFreeRate = quote.regularMarketPrice / 10;
+    // Yahoo Finance dependency removed - use fallback rate
+    riskFreeRate = 0.04;
   } catch (e) {
     console.error("Failed to fetch risk-free rate:", e);
     riskFreeRate = 0.04; // fallback = 4% annualized assumed
@@ -279,8 +259,8 @@ const generateAIInsights = protectedProcedure.query(async ({ ctx }) => {
   const recentTxns = transactions.slice(0, 10).map((txn) => ({
     symbol: txn.symbol,
     action: txn.action,
-    quantity: parseFloat(txn.quantity),
-    price: parseFloat(txn.price),
+    quantity: parseFloat(txn.quantity ?? "0"),
+    price: parseFloat(txn.price ?? "0"),
     date: new Date(txn.executedAt).toLocaleDateString(),
   }));
 
