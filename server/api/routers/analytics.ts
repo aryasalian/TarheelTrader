@@ -407,7 +407,7 @@ Return only valid JSON:
       ],
       riskAssessment: `Volatility: ${riskMetrics.volatility.toFixed(
         4,
-      )}, Sharpe: ${riskMetrics.sharpeRatio.toFixed(
+      )}%, Sharpe: ${riskMetrics.sharpeRatio.toFixed(
         3,
       )}, Sortino: ${riskMetrics.sortinoRatio.toFixed(
         3,
