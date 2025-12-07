@@ -1,21 +1,79 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
-import { LogOut, Home, Filter, PieChart, BarChart3, Settings } from "lucide-react";
+import { LogOut, Home, Filter, PieChart, BarChart3, Settings, Users } from "lucide-react";
 import { createSupabaseComponentClient } from "@/utils/supabase/clients/component";
 import { api } from "@/utils/trpc/api";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { useEffect, useState } from "react";
 
 export function Navigation() {
   const router = useRouter();
   const supabase = createSupabaseComponentClient();
   const apiUtils = api.useUtils();
+  const [activeTraders, setActiveTraders] = useState<number | null>(null);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     apiUtils.invalidate();
     router.push("/login");
   };
+
+  useEffect(() => {
+    let mounted = true;
+    let channel: any = null;
+
+    try {
+      channel = supabase.channel("presence:traders");
+
+      channel.on("presence", { event: "sync" }, () => {
+        try {
+          // presenceState is available on channel; use best-effort access
+          // @ts-ignore
+          const state = channel.presenceState ? channel.presenceState() : {};
+          const count = Object.keys(state || {}).length;
+          if (mounted) setActiveTraders(count);
+        } catch (e) {
+          console.warn("Presence sync error", e);
+        }
+      });
+
+      channel.subscribe(async ({ error }: any) => {
+        if (error) {
+          console.warn("Failed to subscribe to presence channel", error);
+          return;
+        }
+
+        try {
+          const { data } = await supabase.auth.getUser();
+          const uid = data?.user?.id ?? `anon-${Math.random().toString(36).slice(2, 9)}`;
+          // @ts-ignore
+          await channel.track({ user_id: uid });
+        } catch (e) {
+          console.warn("Failed to track presence", e);
+        }
+      });
+    } catch (e) {
+      console.warn("Presence setup failed", e);
+    }
+
+    return () => {
+      mounted = false;
+      try {
+        if (channel) {
+          // @ts-ignore
+          channel.untrack?.();
+          try {
+            supabase.removeChannel(channel);
+          } catch (_) {
+            channel.unsubscribe?.();
+          }
+        }
+      } catch (e) {
+        /* ignore cleanup errors */
+      }
+    };
+  }, [supabase]);
 
   const isActive = (path: string) => router.pathname === path;
 
@@ -82,6 +140,10 @@ export function Navigation() {
 
           <div className="flex items-center gap-2">
             <ThemeToggle />
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Users className="h-4 w-4" />
+              <span>{activeTraders === null ? "—" : activeTraders}</span>
+            </div>
             <Button variant="ghost" onClick={handleLogout} className="gap-2">
               <LogOut className="h-4 w-4" />
               Log Out
