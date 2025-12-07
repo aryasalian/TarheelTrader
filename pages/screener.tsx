@@ -38,8 +38,8 @@ function WatchlistItemRow({
     { symbol: item.symbol },
     {
       enabled: !reference && !priceRecord,
-      refetchInterval: 30000,
-      staleTime: 20000,
+      refetchInterval: 60000,
+      staleTime: 50000,
     },
   );
 
@@ -132,8 +132,12 @@ function ScreenerResultRow({ stock, onToggleFavorite }: { stock: StockRowData; o
 }
 
 export default function ScreenerPage() {
-  const { data: watchlist, refetch: refetchWatchlist } = api.watchlist.getWatchlist.useQuery();
-  const { data: availableSectors } = api.market.getAvailableSectors.useQuery();
+  const { data: watchlist, refetch: refetchWatchlist } = api.watchlist.getWatchlist.useQuery(undefined, {
+    staleTime: 60000,
+  });
+  const { data: availableSectors } = api.market.getAvailableSectors.useQuery(undefined, {
+    staleTime: 300000,
+  });
   const addToWatchlist = api.watchlist.addToWatchlist.useMutation();
   const removeFromWatchlist = api.watchlist.removeFromWatchlist.useMutation();
 
@@ -153,7 +157,9 @@ export default function ScreenerPage() {
 
   const { data, isLoading, isFetching } = api.market.getScreenerStocks.useQuery(queryInput, {
     placeholderData: (previous) => previous,
-    staleTime: 1000 * 15,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
   });
 
   const minPrice = priceRange[0];

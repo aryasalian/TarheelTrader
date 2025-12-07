@@ -1,104 +1,176 @@
 import { createSupabaseServerClient } from "@/utils/supabase/clients/server-props";
 import { GetServerSidePropsContext } from "next";
-import { useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Navigation } from "@/components/navigation";
-import { Settings as SettingsIcon, User, Lock, DollarSign, Bell, Shield, Upload, Camera } from "lucide-react";
+import { User, Lock, Camera } from "lucide-react";
 import { createSupabaseComponentClient } from "@/utils/supabase/clients/component";
-import { useRouter } from "next/router";
-import Image from "next/image";
+import { toast } from "sonner";
 
 export default function SettingsPage() {
-  const supabase = createSupabaseComponentClient();
-  const router = useRouter();
+  const supabase = useMemo(() => createSupabaseComponentClient(), []);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarPath, setAvatarPath] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [currency, setCurrency] = useState("USD");
-  const [notifications, setNotifications] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [imageError, setImageError] = useState(false);
+
+  const refreshUser = async () => {
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      setIsLoadingProfile(false);
+      return null;
+    }
+
+    const user = data.user;
+    setUsername(user.user_metadata?.username ?? "");
+    setEmail(user.email ?? "");
+    setAvatarUrl(user.user_metadata?.avatar_url ?? null);
+    setAvatarPath(user.user_metadata?.avatar_path ?? null);
+    setImageError(false);
+    setIsLoadingProfile(false);
+    return user;
+  };
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
+  useEffect(() => {
+    void refreshUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]);
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith("image/")) {
-      alert("Please upload an image file");
+      toast.error("Please upload an image file");
       return;
     }
 
-    // Validate file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
-      alert("Image size must be less than 2MB");
+      toast.error("Image size must be less than 2MB");
       return;
     }
 
     setIsUploadingAvatar(true);
+    const tempUrl = URL.createObjectURL(file);
+    setPreviewUrl(tempUrl);
+    setImageError(false);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("No user found");
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data.user) throw error ?? new Error("No user found");
 
+      const user = data.user;
       const fileExt = file.name.split(".").pop();
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
+      const fileName = `avatar-${Date.now()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+      const bucket = "avatars";
 
-      // Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, file, { upsert: true });
+        .from(bucket)
+        .upload(filePath, file, { upsert: true, cacheControl: "3600" });
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(filePath);
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(filePath, 31536000); // 1 year expiry
 
-      // Update user metadata
+      if (signedError) throw signedError;
+      
+      const signedUrl = signedData.signedUrl;
+
+      const metadata = {
+        ...user.user_metadata,
+        avatar_url: signedUrl,
+        avatar_path: filePath,
+      };
+
       const { error: updateError } = await supabase.auth.updateUser({
-        data: { avatar_url: publicUrl }
+        data: metadata,
       });
 
       if (updateError) throw updateError;
 
-      setAvatarUrl(publicUrl);
-      alert("Avatar updated successfully!");
+      setAvatarUrl(signedUrl);
+      setAvatarPath(filePath);
+      void refreshUser();
+      toast.success("Avatar updated");
+      setPreviewUrl(null);
     } catch (error) {
       console.error("Error uploading avatar:", error);
-      alert("Failed to upload avatar. Make sure the 'avatars' storage bucket exists in Supabase.");
+      const message = error instanceof Error ? error.message : "Failed to upload avatar";
+      toast.error(message);
+      setPreviewUrl(null);
     } finally {
       setIsUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
   const handleUpdateProfile = async () => {
-    setIsSaving(true);
+    setIsSavingProfile(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        data: { username }
-      });
-      if (error) throw error;
-      alert("Profile updated successfully!");
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data.user) throw error ?? new Error("Not signed in");
+
+      const user = data.user;
+      const metadata = {
+        ...user.user_metadata,
+        username,
+        avatar_url: avatarUrl ?? user.user_metadata?.avatar_url ?? null,
+        avatar_path: avatarPath ?? user.user_metadata?.avatar_path ?? null,
+      };
+
+      const payload: { email?: string; data: Record<string, unknown> } = {
+        data: metadata,
+      };
+
+      const emailChanged = email && email !== user.email;
+      if (emailChanged) {
+        payload.email = email;
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser(payload);
+      if (updateError) throw updateError;
+
+      await refreshUser();
+      toast.success(emailChanged ? "Check your inbox to confirm your new email." : "Profile updated");
     } catch (error) {
       console.error("Error updating profile:", error);
-      alert("Failed to update profile");
+      const message = error instanceof Error ? error.message : "Failed to update profile";
+      toast.error(message);
     } finally {
-      setIsSaving(false);
+      setIsSavingProfile(false);
     }
   };
 
   const handleUpdatePassword = async () => {
+    if (!currentPassword) {
+      alert("Enter your current password to continue.");
+      return;
+    }
+
     if (newPassword !== confirmPassword) {
       alert("Passwords do not match!");
       return;
@@ -108,43 +180,33 @@ export default function SettingsPage() {
       return;
     }
 
-    setIsSaving(true);
+    setIsSavingPassword(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data.user || !data.user.email) throw error ?? new Error("Not signed in");
+
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email: data.user.email,
+        password: currentPassword,
       });
-      if (error) throw error;
-      alert("Password updated successfully!");
+
+      if (reauthError) throw new Error("Current password is incorrect");
+
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (updateError) throw updateError;
+
+      toast.success("Password updated successfully");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (error) {
       console.error("Error updating password:", error);
-      alert("Failed to update password");
+      const message = error instanceof Error ? error.message : "Failed to update password";
+      toast.error(message);
     } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleDeleteAccount = async () => {
-    if (!confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
-      return;
-    }
-
-    const confirmText = prompt('Type "DELETE" to confirm account deletion:');
-    if (confirmText !== "DELETE") {
-      return;
-    }
-
-    try {
-      // Note: Supabase doesn't have direct user deletion from client
-      // This would need to be implemented via an admin API call or database trigger
-      alert("Account deletion request submitted. Please contact support.");
-      await supabase.auth.signOut();
-      router.push("/login");
-    } catch (error) {
-      console.error("Error deleting account:", error);
-      alert("Failed to delete account");
+      setIsSavingPassword(false);
     }
   };
 
@@ -170,15 +232,16 @@ export default function SettingsPage() {
               <CardDescription>Update your personal information</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-start gap-6">
+              <div className="flex flex-col gap-6 md:flex-row md:items-start">
                 <div className="flex flex-col items-center gap-2">
                   <div className="relative h-24 w-24 overflow-hidden rounded-full border-2 border-border bg-muted">
-                    {avatarUrl ? (
-                      <Image
-                        src={avatarUrl}
+                    {(previewUrl || avatarUrl) && !imageError ? (
+                      <img
+                        key={(previewUrl ?? avatarUrl) ?? "avatar"}
+                        src={previewUrl ?? avatarUrl ?? ""}
                         alt="Avatar"
-                        fill
-                        className="object-cover"
+                        className="h-full w-full object-cover"
+                        onError={() => setImageError(true)}
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center">
@@ -197,7 +260,7 @@ export default function SettingsPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploadingAvatar}
+                    disabled={isUploadingAvatar || isLoadingProfile}
                     className="gap-2"
                   >
                     {isUploadingAvatar ? (
@@ -219,6 +282,7 @@ export default function SettingsPage() {
                       placeholder="Enter username"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
+                      disabled={isLoadingProfile}
                     />
                   </div>
                   <div className="space-y-2">
@@ -229,16 +293,16 @@ export default function SettingsPage() {
                       placeholder="your.email@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      disabled
+                      disabled={isLoadingProfile}
                     />
                     <p className="text-sm text-muted-foreground">
-                      Email cannot be changed directly. Contact support if needed.
+                      Changing your email will trigger a confirmation link.
                     </p>
                   </div>
                 </div>
               </div>
-              <Button onClick={handleUpdateProfile} disabled={isSaving}>
-                {isSaving ? "Saving..." : "Save Changes"}
+              <Button onClick={handleUpdateProfile} disabled={isSavingProfile || isLoadingProfile}>
+                {isSavingProfile ? "Saving..." : "Save Changes"}
               </Button>
             </CardContent>
           </Card>
@@ -261,6 +325,7 @@ export default function SettingsPage() {
                   placeholder="Enter current password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
+                  disabled={isLoadingProfile}
                 />
               </div>
               <div className="space-y-2">
@@ -271,6 +336,7 @@ export default function SettingsPage() {
                   placeholder="Enter new password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
+                  disabled={isLoadingProfile}
                 />
               </div>
               <div className="space-y-2">
@@ -281,99 +347,12 @@ export default function SettingsPage() {
                   placeholder="Confirm new password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={isLoadingProfile}
                 />
               </div>
-              <Button onClick={handleUpdatePassword} disabled={isSaving}>
-                {isSaving ? "Updating..." : "Update Password"}
+              <Button onClick={handleUpdatePassword} disabled={isSavingPassword || isLoadingProfile}>
+                {isSavingPassword ? "Updating..." : "Update Password"}
               </Button>
-            </CardContent>
-          </Card>
-
-          {/* Preferences */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <SettingsIcon className="h-5 w-5" />
-                <CardTitle>Preferences</CardTitle>
-              </div>
-              <CardDescription>Customize your trading experience</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="currency">Currency Display</Label>
-                <Select value={currency} onValueChange={setCurrency}>
-                  <SelectTrigger id="currency">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="USD">USD ($)</SelectItem>
-                    <SelectItem value="EUR">EUR (€)</SelectItem>
-                    <SelectItem value="GBP">GBP (£)</SelectItem>
-                    <SelectItem value="JPY">JPY (¥)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <Bell className="h-4 w-4" />
-                    <Label htmlFor="notifications" className="cursor-pointer">
-                      Email Notifications
-                    </Label>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Receive updates about your portfolio
-                  </p>
-                </div>
-                <Button
-                  variant={notifications ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setNotifications(!notifications)}
-                >
-                  {notifications ? "Enabled" : "Disabled"}
-                </Button>
-              </div>
-              <Button>Save Preferences</Button>
-            </CardContent>
-          </Card>
-
-          {/* Trading Plans (Placeholder) */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5" />
-                <CardTitle>Trading Plans</CardTitle>
-              </div>
-              <CardDescription>Set up automated trading strategies</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex h-32 items-center justify-center rounded-lg border-2 border-dashed">
-                <p className="text-muted-foreground">Coming soon - Create custom trading plans</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Danger Zone */}
-          <Card className="border-red-200 dark:border-red-900">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-red-600" />
-                <CardTitle className="text-red-600">Danger Zone</CardTitle>
-              </div>
-              <CardDescription>Irreversible actions</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950">
-                <h3 className="mb-2 font-semibold text-red-900 dark:text-red-100">
-                  Delete Account
-                </h3>
-                <p className="mb-4 text-sm text-red-800 dark:text-red-200">
-                  Once you delete your account, there is no going back. All your data will be permanently removed.
-                </p>
-                <Button variant="destructive" onClick={handleDeleteAccount}>
-                  Delete My Account
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </div>
