@@ -164,7 +164,6 @@ export const marketApiRouter = createTRPCRouter({
           : 0;
         const volume =
           snapshot?.dailyBar?.v ??
-          snapshot?.prevDailyBar?.v ??
           snapshot?.minuteBar?.v ??
           stock.avg_vol ??
           null;
