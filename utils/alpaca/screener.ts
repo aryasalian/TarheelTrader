@@ -42,30 +42,126 @@ async function alpacaFetch<T>(
   return (await response.json()) as T;
 }
 
-export async function fetchTopScreenerStocks(limit = 30) {
-  const data = await alpacaFetch<{ stocks: ScreenerStockRaw[] }>(
-    "/v1beta1/screener/stocks",
-    {
-      top: limit.toString(),
-      sort: "market_cap",
-      direction: "desc",
-      asset_class: "us_equity",
-    },
-  );
+// Popular stocks list - now fetched via yfinance
+const POPULAR_STOCKS = [
+  "AAPL",
+  "MSFT",
+  "GOOGL",
+  "AMZN",
+  "NVDA",
+  "META",
+  "TSLA",
+  "BRK.B",
+  "UNH",
+  "JNJ",
+  "XOM",
+  "V",
+  "PG",
+  "JPM",
+  "MA",
+  "HD",
+  "CVX",
+  "LLY",
+  "ABBV",
+  "MRK",
+  "PEP",
+  "KO",
+  "COST",
+  "AVGO",
+  "WMT",
+  "MCD",
+  "CSCO",
+  "TMO",
+  "ACN",
+  "DHR",
+  "ABT",
+  "CRM",
+  "VZ",
+  "ADBE",
+  "NKE",
+  "TXN",
+  "NFLX",
+  "INTC",
+  "UPS",
+  "PM",
+  "CMCSA",
+  "NEE",
+  "ORCL",
+  "DIS",
+  "COP",
+  "WFC",
+  "BMY",
+  "HON",
+  "UNP",
+  "QCOM",
+  "BA",
+  "GE",
+  "T",
+  "LOW",
+  "CAT",
+  "AMD",
+  "SBUX",
+  "GILD",
+  "AXP",
+  "BLK",
+  "MMM",
+  "CVS",
+  "MDT",
+  "AMGN",
+  "NOW",
+  "SPGI",
+  "CI",
+  "PLD",
+  "ISRG",
+  "TJX",
+  "ZTS",
+  "AMT",
+  "BKNG",
+  "CB",
+  "MO",
+  "DE",
+  "SYK",
+  "C",
+  "BDX",
+  "SO",
+  "ADP",
+  "PNC",
+  "DUK",
+  "TGT",
+  "USB",
+  "BSX",
+  "AON",
+  "MDLZ",
+  "SHW",
+  "CME",
+  "CL",
+  "MMC",
+  "ITW",
+  "EOG",
+  "APD",
+  "GD",
+  "ICE",
+  "NSC",
+  "FIS",
+  "NOC",
+];
 
-  return data.stocks ?? [];
+export async function fetchTopScreenerStocks(limit = 30) {
+  // Return popular stocks list - yfinance will fetch the data
+  return POPULAR_STOCKS.slice(0, limit).map((symbol) => ({
+    symbol,
+    name: symbol,
+    sector: null,
+    industry: null,
+    market_cap: null,
+    avg_vol: null,
+  }));
 }
 
 export async function fetchSnapshots(symbols: string[]) {
   if (symbols.length === 0) return {} as Record<string, SnapshotEntry>;
-  const params = {
-    symbols: symbols.join(","),
-  };
 
-  const data = await alpacaFetch<{ snapshots: Record<string, SnapshotEntry> }>(
-    "/v2/stocks/snapshots",
-    params,
-  );
-
-  return data.snapshots || {};
+  // Use yfinance instead of Alpaca for price snapshots
+  // Return empty object - let Yahoo Finance metadata handle prices
+  return {} as Record<string, SnapshotEntry>;
 }
