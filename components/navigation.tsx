@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
-import { LogOut, Home, Filter, PieChart, BarChart3, Settings, Users } from "lucide-react";
+import { LogOut, Home, Filter, PieChart, BarChart3, Settings, Users, User } from "lucide-react";
 import { createSupabaseComponentClient } from "@/utils/supabase/clients/component";
 import { api } from "@/utils/trpc/api";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useEffect, useState } from "react";
 
 export function Navigation() {
@@ -12,12 +13,34 @@ export function Navigation() {
   const supabase = createSupabaseComponentClient();
   const apiUtils = api.useUtils();
   const [activeTraders, setActiveTraders] = useState<number | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     apiUtils.invalidate();
     router.push("/login");
   };
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (data?.user) {
+        setUserEmail(data.user.email || null);
+        // Get username from metadata or extract from email
+        const name = data.user.user_metadata?.username || 
+                     data.user.user_metadata?.full_name || 
+                     data.user.user_metadata?.name ||
+                     data.user.email?.split('@')[0] || 
+                     'User';
+        setUserName(name);
+        // Get avatar URL from metadata
+        setAvatarUrl(data.user.user_metadata?.avatar_url || null);
+      }
+    };
+    fetchUser();
+  }, [supabase]);
 
   useEffect(() => {
     let mounted = true;
@@ -143,6 +166,17 @@ export function Navigation() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Users className="h-4 w-4" />
               <span>{activeTraders === null ? "—" : activeTraders}</span>
+            </div>
+            <div className="flex items-center gap-2 ml-2">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={avatarUrl || undefined} alt={userName || 'User'} />
+                <AvatarFallback>
+                  {userName?.charAt(0).toUpperCase() || <User className="h-4 w-4" />}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm font-medium hidden sm:inline-block">
+                {userName || 'User'}
+              </span>
             </div>
             <Button variant="ghost" onClick={handleLogout} className="gap-2">
               <LogOut className="h-4 w-4" />
