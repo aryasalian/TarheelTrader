@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { LogOut, Home, Filter, PieChart, BarChart3, Settings, Users } from "lucide-react";
@@ -83,9 +84,14 @@ export function Navigation() {
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-8">
             <Link href="/" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600">
-                <Filter className="h-4 w-4 text-white" />
-              </div>
+              <Image
+                src="/TarheelTrader-logo.svg"
+                alt="Tarheel Trader"
+                width={40}
+                height={40}
+                priority
+                className="h-16 w-auto"
+              />
               <span className="text-xl font-bold">Tarheel Trader</span>
             </Link>
 
