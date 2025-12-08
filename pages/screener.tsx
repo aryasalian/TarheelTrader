@@ -372,7 +372,7 @@ export default function ScreenerPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage <= 1 || isFetching}
+                  disabled={currentPage <= 1}
                 >
                   ← Prev
                 </Button>
@@ -382,7 +382,6 @@ export default function ScreenerPage() {
                     variant={pageNumber === currentPage ? "default" : "outline"}
                     size="sm"
                     onClick={() => handlePageChange(pageNumber)}
-                    disabled={isFetching && pageNumber === currentPage}
                   >
                     {pageNumber}
                   </Button>
@@ -391,7 +390,7 @@ export default function ScreenerPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={totalPages === 0 || currentPage >= safeTotalPages || isFetching}
+                  disabled={totalPages === 0 || currentPage >= safeTotalPages}
                 >
                   Next →
                 </Button>
@@ -408,12 +407,28 @@ export default function ScreenerPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                      Loading stocks...
-                    </TableCell>
-                  </TableRow>
+                {isLoading || isFetching ? (
+                  <>
+                    {[...Array(10)].map((_, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>
+                          <div className="h-4 w-16 animate-pulse rounded bg-muted"></div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="h-4 w-20 animate-pulse rounded bg-muted"></div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="h-4 w-24 animate-pulse rounded bg-muted"></div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="h-6 w-16 animate-pulse rounded-full bg-muted"></div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="h-8 w-8 animate-pulse rounded bg-muted"></div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </>
                 ) : paginatedStocks.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">

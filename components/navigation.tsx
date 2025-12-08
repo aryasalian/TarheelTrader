@@ -2,10 +2,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
-import { LogOut, Home, Filter, PieChart, BarChart3, Settings, Users } from "lucide-react";
+import { LogOut, Home, Filter, PieChart, BarChart3, Settings, Users, User } from "lucide-react";
 import { createSupabaseComponentClient } from "@/utils/supabase/clients/component";
 import { api } from "@/utils/trpc/api";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useEffect, useState } from "react";
 
 export function Navigation() {
@@ -13,6 +14,8 @@ export function Navigation() {
   const supabase = createSupabaseComponentClient();
   const apiUtils = api.useUtils();
   const [activeTraders, setActiveTraders] = useState<number | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -21,7 +24,26 @@ export function Navigation() {
   };
 
   useEffect(() => {
+    const fetchUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (data?.user) {
+        // Get username from metadata or extract from email
+        const name = data.user.user_metadata?.username || 
+                     data.user.user_metadata?.full_name || 
+                     data.user.user_metadata?.name ||
+                     data.user.email?.split('@')[0] || 
+                     'User';
+        setUserName(name);
+        // Get avatar URL from metadata
+        setAvatarUrl(data.user.user_metadata?.avatar_url || null);
+      }
+    };
+    fetchUser();
+  }, [supabase]);
+
+  useEffect(() => {
     let mounted = true;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let channel: any = null;
 
     try {
@@ -30,15 +52,15 @@ export function Navigation() {
       channel.on("presence", { event: "sync" }, () => {
         try {
           // presenceState is available on channel; use best-effort access
-          // @ts-ignore
           const state = channel.presenceState ? channel.presenceState() : {};
           const count = Object.keys(state || {}).length;
           if (mounted) setActiveTraders(count);
-        } catch (e) {
-          console.warn("Presence sync error", e);
+        } catch (error) {
+          console.warn("Presence sync error", error);
         }
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       channel.subscribe(async ({ error }: any) => {
         if (error) {
           console.warn("Failed to subscribe to presence channel", error);
@@ -48,10 +70,9 @@ export function Navigation() {
         try {
           const { data } = await supabase.auth.getUser();
           const uid = data?.user?.id ?? `anon-${Math.random().toString(36).slice(2, 9)}`;
-          // @ts-ignore
           await channel.track({ user_id: uid });
-        } catch (e) {
-          console.warn("Failed to track presence", e);
+        } catch (error) {
+          console.warn("Failed to track presence", error);
         }
       });
     } catch (e) {
@@ -62,15 +83,14 @@ export function Navigation() {
       mounted = false;
       try {
         if (channel) {
-          // @ts-ignore
           channel.untrack?.();
           try {
             supabase.removeChannel(channel);
-          } catch (_) {
+          } catch {
             channel.unsubscribe?.();
           }
         }
-      } catch (e) {
+      } catch {
         /* ignore cleanup errors */
       }
     };
@@ -148,7 +168,18 @@ export function Navigation() {
             <ThemeToggle />
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Users className="h-4 w-4" />
-              <span>{activeTraders === null ? "—" : activeTraders}</span>
+              <span>{activeTraders === null ? "—" : activeTraders} active traders</span>
+            </div>
+            <div className="flex items-center gap-2 ml-2">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={avatarUrl || undefined} alt={userName || 'User'} />
+                <AvatarFallback>
+                  {userName?.charAt(0).toUpperCase() || <User className="h-4 w-4" />}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm font-medium hidden sm:inline-block">
+                {userName || 'User'}
+              </span>
             </div>
             <Button variant="ghost" onClick={handleLogout} className="gap-2">
               <LogOut className="h-4 w-4" />
