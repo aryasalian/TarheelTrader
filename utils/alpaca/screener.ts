@@ -16,9 +16,9 @@ export interface ScreenerStockRaw {
 
 export interface SnapshotEntry {
   latestTrade?: { p?: number } | null;
-  minuteBar?: { c?: number } | null;
+  minuteBar?: { c?: number; v?: number } | null;
   dailyBar?: { c?: number; o?: number; v?: number } | null;
-  prevDailyBar?: { c?: number } | null;
+  prevDailyBar?: { c?: number; v?: number } | null;
 }
 
 async function alpacaFetch<T>(
