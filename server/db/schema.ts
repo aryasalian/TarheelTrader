@@ -18,7 +18,6 @@ import {
   text,
   numeric,
   timestamp,
-  boolean,
   unique,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
@@ -97,18 +96,6 @@ export const watchlistItems = pgTable("watchlist_items", {
   addedAt: timestamp("added_at").notNull().defaultNow(),
 });
 
-// notification
-export const notification = pgTable("notification", {
-  id: uuid("id").primaryKey(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => profiles.id),
-  type: notificationTypeEnum("type").notNull(),
-  message: text("message").notNull(),
-  isRead: boolean("is_read").notNull().default(false),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
-
 /* RELATIONS */
 // profiles -> children
 export const profilesRelations = relations(profiles, ({ many }) => ({
@@ -116,7 +103,6 @@ export const profilesRelations = relations(profiles, ({ many }) => ({
   transactions: many(transaction),
   snapshots: many(hourlyPortfolioSnapshot),
   watchlist: many(watchlistItems),
-  notifications: many(notification),
 }));
 
 // position -> profiles
@@ -150,14 +136,6 @@ export const snapshotRelations = relations(
 export const watchlistRelations = relations(watchlistItems, ({ one }) => ({
   user: one(profiles, {
     fields: [watchlistItems.userId],
-    references: [profiles.id],
-  }),
-}));
-
-// notification -> profiles
-export const notificationRelations = relations(notification, ({ one }) => ({
-  user: one(profiles, {
-    fields: [notification.userId],
     references: [profiles.id],
   }),
 }));

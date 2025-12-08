@@ -13,11 +13,13 @@ import {
   getTenYearYield,
   YahooMetadata,
 } from "@/utils/yahoo/metadata";
-import OpenAI from "openai";
+import { AzureOpenAI } from "openai";
 import { alpaca } from "@/utils/alpaca/clients";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_KEY,
+export const openai = new AzureOpenAI({
+  baseURL: "https://azureaiapi.cloud.unc.edu/openai",
+  apiKey: process.env.OPENAI_KEY!,
+  apiVersion: "2024-06-01",
 });
 
 interface Position {
@@ -138,7 +140,7 @@ export async function computeRiskMetrics(
   let maxDD = 0;
   for (const v of values) {
     peak = Math.max(peak, v);
-    const drawdown = (peak - v) / peak;
+    const drawdown = peak != 0 ? (peak - v) / peak : 0;
     maxDD = Math.max(maxDD, drawdown);
   }
 
