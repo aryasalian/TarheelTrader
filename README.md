@@ -12,39 +12,18 @@
 ![Drizzle](https://img.shields.io/badge/-Drizzle-05122A?style=flat&logo=drizzle)
 ![tRPC](https://img.shields.io/badge/-tRPC-05122A?style=flat&logo=trpc)
 
-_Add some screenshots or graphics here that show your app being used!_
+<img width="1470" height="800" alt="Screenshot 2025-12-09 at 4 10 07 PM" src="https://github.com/user-attachments/assets/23183b46-347d-409b-90c8-64628e947ba6" />
+<img width="1470" height="800" alt="Screenshot 2025-12-09 at 4 10 17 PM" src="https://github.com/user-attachments/assets/f1a62ffe-197b-4182-895a-9f1df7a9bece" />
 
 ## Screenshots
+<img width="1470" height="800" alt="Screenshot 2025-12-09 at 4 10 26 PM" src="https://github.com/user-attachments/assets/d718bae2-451e-4d1e-8228-6492ed4aa51d" />
+<img width="1470" height="800" alt="Screenshot 2025-12-09 at 4 10 35 PM" src="https://github.com/user-attachments/assets/58492f05-abd3-44bd-bfa9-9cd623350353" />
+<img width="1470" height="800" alt="Screenshot 2025-12-09 at 4 10 59 PM" src="https://github.com/user-attachments/assets/7a3bd94b-9fe2-4664-8133-279d26b4acd2" />
+<img width="1470" height="800" alt="Screenshot 2025-12-09 at 4 11 12 PM" src="https://github.com/user-attachments/assets/4c9dffb4-9b82-4c6e-8ffd-84ee7cd39b7b" />
 
-<!-- Responsive layout that groups screenshots by page. Each row shows two images from the same page side-by-side. -->
+Tarheel Tracker is a portfolio analytics dashboard that helps users track stock investments, simulate trades, and analyze performance with live market data. Users can manage portfolios, build watchlists, screen stocks, and receive AI insights that help you make the best investment. 
 
-<div style="display:flex;flex-direction:column;gap:18px;">
-  <!-- Row 1: Page A (two views of the same page) -->
-  <div style="display:flex;flex-wrap:wrap;gap:12px;">
-    <figure style="flex:1;min-width:260px;margin:0;">
-      <img alt="Dashboard — view A (same page)" src="https://github.com/user-attachments/assets/4264fb2a-b2f5-4716-83ba-11ecf41a3e40" style="width:100%;height:auto;border:1px solid #e6e6e6;border-radius:6px;" />
-      <figcaption style="text-align:center;font-size:0.9em;color:#666;margin-top:6px;">Dashboard — view A (same page)</figcaption>
-    </figure>
-    <figure style="flex:1;min-width:260px;margin:0;">
-      <img alt="Dashboard — view B (same page)" src="https://github.com/user-attachments/assets/bfacf077-1461-4513-9041-30261f6ccbd1" style="width:100%;height:auto;border:1px solid #e6e6e6;border-radius:6px;" />
-      <figcaption style="text-align:center;font-size:0.9em;color:#666;margin-top:6px;">Dashboard — view B (same page)</figcaption>
-    </figure>
-  </div>
-
-  <!-- Row 2: Page B (two views of the same page) -->
-  <div style="display:flex;flex-wrap:wrap;gap:12px;">
-    <figure style="flex:1;min-width:260px;margin:0;">
-      <img alt="Settings — view A (same page)" src="https://github.com/user-attachments/assets/d4a3f65a-3c1c-41e1-8df8-fcd12897357e" style="width:100%;height:auto;border:1px solid #e6e6e6;border-radius:6px;" />
-      <figcaption style="text-align:center;font-size:0.9em;color:#666;margin-top:6px;">Settings — view A (same page)</figcaption>
-    </figure>
-    <figure style="flex:1;min-width:260px;margin:0;">
-      <img alt="Settings — view B (same page)" src="https://github.com/user-attachments/assets/00939a71-330e-4bad-92b5-7396f84719c1" style="width:100%;height:auto;border:1px solid #e6e6e6;border-radius:6px;" />
-      <figcaption style="text-align:center;font-size:0.9em;color:#666;margin-top:6px;">Settings — view B (same page)</figcaption>
-    </figure>
-  </div>
-</div>
-
-_Include a short description of your app here._
+DESIGN
 
 ## Features
 
