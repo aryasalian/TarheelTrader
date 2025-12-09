@@ -12,6 +12,7 @@
 ![Drizzle](https://img.shields.io/badge/-Drizzle-05122A?style=flat&logo=drizzle)
 ![tRPC](https://img.shields.io/badge/-tRPC-05122A?style=flat&logo=trpc)
 
+
 <img width="1470" height="800" alt="Screenshot 2025-12-09 at 4 10 07 PM" src="https://github.com/user-attachments/assets/23183b46-347d-409b-90c8-64628e947ba6" />
 <img width="1470" height="800" alt="Screenshot 2025-12-09 at 4 10 17 PM" src="https://github.com/user-attachments/assets/f1a62ffe-197b-4182-895a-9f1df7a9bece" />
 
@@ -23,12 +24,19 @@
 
 Tarheel Tracker is a portfolio analytics dashboard that helps users track stock investments, simulate trades, and analyze performance with live market data. Users can manage portfolios, build watchlists, screen stocks, and receive AI insights that help you make the best investment. 
 
-DESIGN
-
 ## Features
 
-_Describe the features of your app here._
+### 1. Portfolio Tracker
+Create a paper trading portfolio and track live portfolio value, daily performance, and overall profit or loss with interactive charts.
 
-## ...
+### 2. Watchlist & Live Price Feed
+Star stocks to a personalized watchlist with live prices, percent change, and access to key stock data.
 
-Feel free to add other sections as you see fit.
+### 3. Stock Screener
+Filter and sort stocks by price, volume, volatility, and sector to discover new investment opportunities and add them directly to your watchlist.
+
+### 4. Trade & Transaction Log (Mock Broker)
+Place simulated buy and sell trades using live market data to test strategies. All transactions are automatically logged and reflected in portfolio performance.
+
+### 5. Analytics & AI Insights
+View detailed performance analytics including sector breakdowns, top performers, and AI-generated summaries that explain portfolio risk and diversification.
