@@ -74,7 +74,7 @@ export default function SignUpPage() {
             />
           </div>
 
-          <CardTitle className="text-2xl font-semibold tracking-tight">
+          <CardTitle className="text-2xl text-white font-semibold tracking-tight">
             Welcome to Tarheel Trader
           </CardTitle>
 

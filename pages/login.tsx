@@ -71,7 +71,7 @@ export default function LoginPage() {
                 priority
               />
             </div>
-            <CardTitle className="text-2xl font-semibold tracking-tight">Tarheel Trader</CardTitle>
+            <CardTitle className="text-2xl text-white font-semibold tracking-tight">Tarheel Trader</CardTitle>
             <CardDescription className="text-white/60">
               Log in to your paper trading account
             </CardDescription>
