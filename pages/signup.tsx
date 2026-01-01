@@ -12,10 +12,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createSupabaseComponentClient } from "@/utils/supabase/clients/component";
 import { api } from "@/utils/trpc/api";
-import { TrendingUp } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useState } from "react";
+import { AuthDecorBackground } from "@/components/AuthBgDecor";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -41,18 +42,52 @@ export default function SignUpPage() {
   };
   
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
-      <Card className="w-full max-w-md">
+    <AuthDecorBackground streaksCount={30} streaksSeed={2026} streaksDirection="up-right">
+      <div className="flex min-h-screen items-center justify-center p-6">
+      {/* FOREGROUND SIGNUP CARD */}
+      <Card
+        className="
+          w-full max-w-md
+          border-white/10
+          bg-neutral-950/60
+          backdrop-blur-xl
+          shadow-2xl
+          shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_0_24px_rgba(255,255,255,0.1)]
+        "
+      >
         <CardHeader className="space-y-1 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-600">
-            <TrendingUp className="h-6 w-6 text-white" />
+          <div
+            className="
+              mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full
+              bg-sky-900/40
+              border border-sky-400
+              shadow-[0_0_12px_rgba(56,189,248,0.4),0_0_32px_rgba(56,189,248,0.2)]
+            "
+          >
+            <Image
+              src="/TarheelTrader-logo.svg"
+              alt="Tarheel Trader logo"
+              width={80}
+              height={80}
+              className="object-contain"
+              priority
+            />
           </div>
-          <CardTitle className="text-2xl font-bold">Welcome to Tarheel Trader</CardTitle>
-          <CardDescription>Create your paper trading account</CardDescription>
+
+          <CardTitle className="text-2xl font-semibold tracking-tight">
+            Welcome to Tarheel Trader
+          </CardTitle>
+
+          <CardDescription className="text-white/60">
+            Create your paper trading account
+          </CardDescription>
         </CardHeader>
+
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" className="text-white/80">
+              Email
+            </Label>
             <Input
               id="email"
               type="email"
@@ -60,39 +95,54 @@ export default function SignUpPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              className="border-white/10 bg-white/[0.04] text-white placeholder:text-white/35 focus-visible:ring-sky-400/40"
             />
           </div>
+
           <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
+            <Label htmlFor="username" className="text-white/80">
+              Username
+            </Label>
             <Input
               id="username"
               placeholder="johndoe"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
+              className="border-white/10 bg-white/[0.04] text-white placeholder:text-white/35 focus-visible:ring-sky-400/40"
             />
           </div>
+
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password" className="text-white/80">
+              Password
+            </Label>
             <Input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              className="border-white/10 bg-white/[0.04] text-white placeholder:text-white/35 focus-visible:ring-sky-400/40"
             />
           </div>
-          <Button className="w-full" onClick={signUp}>
+
+          <Button
+            className="w-full bg-sky-500/90 text-neutral-950 hover:bg-sky-400"
+            onClick={signUp}
+          >
             Create Account
           </Button>
-          <div className="text-center text-sm text-muted-foreground">
+
+          <div className="text-center text-sm text-white/60">
             Already have an account?{" "}
-            <Link href="/login" className="font-medium text-primary hover:underline">
+            <Link href="/login" className="font-medium text-sky-300 hover:underline">
               Log in here
             </Link>
           </div>
         </CardContent>
       </Card>
     </div>
+    </AuthDecorBackground>
   );
 }
